@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BoxBook</string>
+    <string name="title_activity_main">BoxBook</string>
+    <string name="package_name">in.boxbook.app</string>
+    <string name="custom_url_scheme">in.boxbook.app</string>
+</resources>

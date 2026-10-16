@@ -1,0 +1,11 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+// The shared @rajesh-hub packages are linked from ../rajesh-hub, so they sit outside this
+// folder: allow the dev server to read them and make sure only one copy of React is used.
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: { dedupe: ['react', 'react-dom', 'sonner'] },
+  server: { fs: { allow: ['..'] } },
+})
