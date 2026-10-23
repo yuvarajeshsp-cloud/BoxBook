@@ -6,6 +6,40 @@
 /* Let Tailwind see the class names used inside the shared components. */
 @source "../node_modules/@rajesh-hub/ui/src";
 
+/* BoxBook's bottom menu is corrugated-board brown. Only the sidebar tokens (which the hub's
+   BottomNav reads) are overridden; the rest of the hub theme is untouched. */
+:root {
+  /* Brand accent: carton brown (white text on it is 6.2:1). */
+  --primary: #8a5524;
+  --primary-foreground: #ffffff;
+  --ring: #8a5524;
+  --accent: #efdfc6;
+  --accent-foreground: #3d2a14;
+  --sidebar: #c8a06b;
+  --sidebar-foreground: #1c1103;
+  --sidebar-primary: #7a4a1a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #b58b55;
+  --sidebar-accent-foreground: #3d2a14;
+  --sidebar-border: #b58b55;
+  --sidebar-ring: #7a4a1a;
+}
+.dark {
+  --primary: #e5ac66;
+  --primary-foreground: #2a1c0d;
+  --ring: #e5ac66;
+  --accent: #3b2d1c;
+  --accent-foreground: #ebd9bc;
+  --sidebar: #4b3722;
+  --sidebar-foreground: #ebd9bc;
+  --sidebar-primary: #e5ac66;
+  --sidebar-primary-foreground: #2a1c0d;
+  --sidebar-accent: #5d452a;
+  --sidebar-accent-foreground: #ebd9bc;
+  --sidebar-border: #62492c;
+  --sidebar-ring: #e5ac66;
+}
+
 /* Status colours the hub has no token for yet, mapped onto its palette. */
 @theme inline {
   --color-good: var(--chart-4);
