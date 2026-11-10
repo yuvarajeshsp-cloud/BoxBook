@@ -13,6 +13,7 @@ import { Calculator } from './screens/Calculator';
 import { BoxesList, Business, More } from './screens/More';
 import { Company } from './screens/Company';
 import { Help } from './screens/Help';
+import { ReelDetail, ReelEdit, StockList } from './screens/Stock';
 import { Backup } from './screens/Backup';
 import { DesktopNav } from './DesktopNav';
 
@@ -62,6 +63,12 @@ function renderRoute(r: Route) {
       return <Company />;
     case 'help':
       return <Help />;
+    case 'stock':
+      return <StockList />;
+    case 'reel':
+      return <ReelDetail id={r.id} />;
+    case 'reelEdit':
+      return <ReelEdit id={r.id} />;
   }
 }
 

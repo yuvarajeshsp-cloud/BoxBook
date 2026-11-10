@@ -124,3 +124,16 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
    For the website add a repo variable `GOOGLE_WEB_CLIENT_ID` (Settings → Secrets and variables → Actions → Variables).
 5. `npm run drive:native` (registers the redirect scheme in `AndroidManifest.xml` / `Info.plist`; idempotent), then `npm run build && npx cap sync`.
 - Without ids the Drive card says "Not set up in this build" and nothing else changes.
+
+## Paper stock (reel level)
+- Data: `AppData.reels` (`Reel`: number, BF, GSM, width mm, supplier, receivedAt, weightIn kg, rate) and `AppData.stockMoves`
+  (`StockMove`: reelId, kind `issue|return|waste|adjust`, signed `kg`, optional `orderId`/`orderNo`). A reel's balance = `weightIn` + Σ moves (`reelBalance`);
+  there is no stored "left" figure, the ledger is the truth. `Settings.stockWastePct` (default 5) is the extra paper planned per order. All included in backups; old backups load with empty stock.
+- `lib/stock.ts` (tested in `stock.test.ts`): `paperNeed(items)` groups the box layers of an order by GSM+BF (kg = `layerGrams` × qty, widest deckle = min reel width);
+  `matchingReels` (same GSM, BF ≥ needed, width ≥ deckle, stock left; exact BF → least trim → smallest balance first); side trim: paper really used = deckle/width of the reel,
+  so `reelDraw` takes more kg off a wider reel and `issuedNet` counts only the usable share; `stockByGrade` for the list.
+- `calc.ts` `layerGrams(spec)` = per-layer grams of one box (sums to `calcBox().weight`).
+- Screens: `screens/Stock.tsx` (`StockList` route `stock`, `ReelDetail` `reel`, `ReelEdit` `reelEdit`; More → Paper stock, desktop sidebar), `screens/OrderPaper.tsx`
+  ("Paper needed" on the order page: need vs stock, **Issue reels** once the order is Confirmed/In production/Ready, **Return** leftover per reel).
+- Decision: paper is deducted when the user issues reels (not automatically when the order is placed) so cancelled quotes/orders do not eat stock.
+- Not built yet: reorder levels / low-stock alerts, supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.

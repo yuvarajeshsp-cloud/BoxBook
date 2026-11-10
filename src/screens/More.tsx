@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { Box, Building2, Calculator, CircleHelp, DatabaseBackup, Plus } from 'lucide-react';
+import { Box, Building2, Calculator, CircleHelp, DatabaseBackup, Layers, Plus } from 'lucide-react';
+import { stockByGrade } from '../lib/stock';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { specLabel } from '../lib/calc';
 import { timeAgo } from '../lib/format';
-import type { Settings } from '../lib/types';
+import type { AppData, Settings } from '../lib/types';
 import { Empty, Field, Header, List, NumInput, Page, Row, Section, Segmented, Fab } from '../ui';
 
 const iconCls = 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary';
+
+const stockSub = (reels: AppData['reels'], moves: AppData['stockMoves']) => {
+  const g = stockByGrade(reels, moves);
+  if (!g.length) return 'Reels, issue to orders';
+  const kg = g.reduce((s, x) => s + x.kg, 0);
+  return `${Math.round(kg).toLocaleString('en-IN')} kg · ${g.reduce((s, x) => s + x.reels.length, 0)} reels`;
+};
 
 export function More() {
   const { data, updateSettings } = useStore();
@@ -28,6 +36,16 @@ export function More() {
               }
               title="Saved boxes"
               sub={`${data.boxes.length} saved`}
+            />
+            <Row
+              onClick={() => nav.push({ name: 'stock' })}
+              icon={
+                <span className={iconCls}>
+                  <Layers size={20} />
+                </span>
+              }
+              title="Paper stock"
+              sub={stockSub(data.reels, data.stockMoves)}
             />
             <Row
               onClick={() => nav.push({ name: 'company' })}

@@ -108,6 +108,43 @@ export interface Order {
   updatedAt: string;
 }
 
+/** One paper reel in the godown. Its balance is `weightIn` plus every StockMove against it. */
+export interface Reel {
+  id: string;
+  /** Reel number from the mill's label (or your own running number). */
+  number: string;
+  bf: number;
+  gsm: number;
+  /** Reel width in mm; it must be at least the deckle of the box you cut from it. */
+  width: number;
+  supplier: string;
+  receivedAt: string; // yyyy-mm-dd
+  /** Weight when received, kg. */
+  weightIn: number;
+  /** Purchase rate per kg. */
+  rate: number;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** issue = paper used for an order, return = unused paper back to the reel, waste = trim / spoilage, adjust = count correction. */
+export type StockMoveKind = 'issue' | 'return' | 'waste' | 'adjust';
+
+export interface StockMove {
+  id: string;
+  reelId: string;
+  /** ISO date-time. */
+  date: string;
+  kind: StockMoveKind;
+  /** Signed: negative takes paper off the reel, positive puts it back. */
+  kg: number;
+  orderId?: string;
+  /** Kept so the ledger still reads right if the order is deleted later. */
+  orderNo?: string;
+  note: string;
+}
+
 export interface Settings {
   businessName: string;
   businessPhone: string;
@@ -142,6 +179,8 @@ export interface Settings {
   driveAuto: boolean;
   lastDriveBackupAt: string; // ISO
   lastDriveAutoBackup: string; // yyyy-mm-dd
+  /** Extra paper to plan for beyond the calculated need (start-up, spoilage), percent. */
+  stockWastePct: number;
 }
 
 export interface AppData {
@@ -151,5 +190,7 @@ export interface AppData {
   customers: Customer[];
   orders: Order[];
   boxes: SavedBox[];
+  reels: Reel[];
+  stockMoves: StockMove[];
   settings: Settings;
 }

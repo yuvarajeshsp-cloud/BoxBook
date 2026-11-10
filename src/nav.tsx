@@ -15,7 +15,10 @@ export type Route =
   | { name: 'backup' }
   | { name: 'business' }
   | { name: 'company' }
-  | { name: 'help' };
+  | { name: 'help' }
+  | { name: 'stock' }
+  | { name: 'reel'; id: string }
+  | { name: 'reelEdit'; id?: string };
 
 interface Nav {
   tab: Tab;

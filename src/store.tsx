@@ -4,7 +4,7 @@ import { emptyData, isNative, loadData, saveData } from './lib/storage';
 import { backupName, saveBackupOnDevice, toJson } from './lib/backup';
 import { driveSession, uploadDriveBackup } from './lib/drive';
 import { todayISO, uid } from './lib/format';
-import type { AppData, Customer, Order, SavedBox, Settings } from './lib/types';
+import type { AppData, Customer, Order, Reel, SavedBox, Settings, StockMove, StockMoveKind } from './lib/types';
 
 interface Store {
   data: AppData;
@@ -15,6 +15,12 @@ interface Store {
   deleteOrder: (id: string) => void;
   upsertBox: (b: Omit<SavedBox, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => SavedBox;
   deleteBox: (id: string) => void;
+  upsertReel: (r: Partial<Reel> & Pick<Reel, 'number' | 'bf' | 'gsm' | 'width' | 'weightIn'>) => Reel;
+  /** Removes the reel and its movements. */
+  deleteReel: (id: string) => void;
+  /** `kg` is signed: negative takes paper off the reel. */
+  addStockMove: (m: { reelId: string; kind: StockMoveKind; kg: number; orderId?: string; note?: string }) => StockMove;
+  deleteStockMove: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   replaceAll: (d: AppData) => Promise<void>;
   backupNow: () => Promise<void>;
@@ -178,6 +184,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const deleteBox = (id: string) => commit((d) => ({ ...d, boxes: d.boxes.filter((b) => b.id !== id) }));
 
+  const upsertReel: Store['upsertReel'] = (r) => {
+    const existing = r.id ? dataRef.current.reels.find((x) => x.id === r.id) : undefined;
+    const rec: Reel = {
+      supplier: '',
+      receivedAt: todayISO(),
+      rate: 0,
+      note: '',
+      ...existing,
+      ...r,
+      id: existing?.id || uid(),
+      createdAt: existing?.createdAt || now(),
+      updatedAt: now(),
+    };
+    commit((d) => ({ ...d, reels: existing ? d.reels.map((x) => (x.id === rec.id ? rec : x)) : [rec, ...d.reels] }));
+    return rec;
+  };
+
+  const deleteReel = (id: string) => commit((d) => ({ ...d, reels: d.reels.filter((r) => r.id !== id), stockMoves: d.stockMoves.filter((m) => m.reelId !== id) }));
+
+  const addStockMove: Store['addStockMove'] = (m) => {
+    const order = m.orderId ? dataRef.current.orders.find((o) => o.id === m.orderId) : undefined;
+    const rec: StockMove = { id: uid(), reelId: m.reelId, date: now(), kind: m.kind, kg: m.kg, orderId: m.orderId, orderNo: order?.number, note: m.note || '' };
+    commit((d) => ({ ...d, stockMoves: [rec, ...d.stockMoves] }));
+    return rec;
+  };
+
+  const deleteStockMove = (id: string) => commit((d) => ({ ...d, stockMoves: d.stockMoves.filter((m) => m.id !== id) }));
+
   const updateSettings = (patch: Partial<Settings>) => commit((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
 
   const replaceAll = async (incoming: AppData) => {
@@ -203,7 +237,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ data, ready, upsertCustomer, deleteCustomer, upsertOrder, deleteOrder, upsertBox, deleteBox, updateSettings, replaceAll, backupNow, toast, toastMsg }}
+      value={{ data, ready, upsertCustomer, deleteCustomer, upsertOrder, deleteOrder, upsertBox, deleteBox, upsertReel, deleteReel, addStockMove, deleteStockMove, updateSettings, replaceAll, backupNow, toast, toastMsg }}
     >
       {children}
     </Ctx.Provider>

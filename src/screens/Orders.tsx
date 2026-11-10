@@ -9,6 +9,7 @@ import { shareFile } from '../lib/sharefile';
 import type { InvoiceMeta, Order, OrderItem, OrderStatus } from '../lib/types';
 import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, SearchBox, Section, Sheet, STATUS, STATUS_FLOW, StatusChip } from '../ui';
 import { Missing } from './Customers';
+import { OrderPaper } from './OrderPaper';
 
 type Filter = 'all' | 'active' | OrderStatus;
 
@@ -316,6 +317,8 @@ export function OrderDetail({ id }: { id: string }) {
             ))}
           </div>
         </Section>
+
+        <OrderPaper order={o} />
 
         </div>
         <div>

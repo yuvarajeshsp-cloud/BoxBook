@@ -8,7 +8,7 @@ import type { AppData } from '../lib/types';
 import { Confirm, Header, List, Page, Row, Section, Segmented, Sheet, Toggle } from '../ui';
 import { DriveBackup } from './DriveBackup';
 
-const counts = (d: AppData) => `${d.customers.length} customers, ${d.orders.length} orders, ${d.boxes.length} saved boxes${d.settings.businessName ? ' + company profile' : ''}${d.settings.businessLogo ? ' & logo' : ''}`;
+const counts = (d: AppData) => `${d.customers.length} customers, ${d.orders.length} orders, ${d.boxes.length} saved boxes${d.reels?.length ? `, ${d.reels.length} paper reels` : ''}${d.settings.businessName ? ' + company profile' : ''}${d.settings.businessLogo ? ' & logo' : ''}`;
 const kb = (n: number) => (n < 1024 ? `${n} B` : `${Math.round(n / 1024)} KB`);
 
 export function Backup() {

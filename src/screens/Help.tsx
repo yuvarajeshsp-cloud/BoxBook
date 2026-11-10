@@ -47,6 +47,27 @@ const GROUPS: { title: string; items: Qa[] }[] = [
     ],
   },
   {
+    title: 'Paper stock',
+    items: [
+      {
+        q: 'How do I add paper reels?',
+        a: 'Open More → Paper stock and tap Add reel. Enter BF, GSM, width (mm), weight (kg) and the rate, plus the reel number and supplier. “Save & add another” keeps the grade and supplier, which is quick when several reels arrive together.',
+      },
+      {
+        q: 'How does an order use the stock?',
+        a: 'An order made from calculator boxes shows “Paper needed” per grade (BF and GSM): the kg from the box size and quantity, plus the extra % you set in Paper stock for start-up waste. Once the order is Confirmed, tap Issue reels, pick a reel and the kg to take. The reel balance goes down and the order records which reels it used.',
+      },
+      {
+        q: 'Which reel should I pick?',
+        a: 'BoxBook lists reels with the same GSM, the same or a higher BF, and a width at least as wide as the box’s deckle. The one with the least side trim comes first, so part-used reels get finished before new ones. A wider reel costs more kg because the extra width is trimmed off; the suggested kg already includes that.',
+      },
+      {
+        q: 'Some paper was left over or wasted. What now?',
+        a: 'On the order, tap Return next to the reel and enter the leftover kg. For spoilage not tied to an order, or after weighing a reel, open the reel and use “Record waste or correct the weight”. Every change is in the reel’s movement list and can be undone there.',
+      },
+    ],
+  },
+  {
     title: 'Backup & restore',
     items: [
       {
