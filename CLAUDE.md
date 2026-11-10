@@ -135,5 +135,11 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - `calc.ts` `layerGrams(spec)` = per-layer grams of one box (sums to `calcBox().weight`).
 - Screens: `screens/Stock.tsx` (`StockList` route `stock`, `ReelDetail` `reel`, `ReelEdit` `reelEdit`; More → Paper stock, desktop sidebar), `screens/OrderPaper.tsx`
   ("Paper needed" on the order page: need vs stock, **Issue reels** once the order is Confirmed/In production/Ready, **Return** leftover per reel).
-- Decision: paper is deducted when the user issues reels (not automatically when the order is placed) so cancelled quotes/orders do not eat stock.
-- Not built yet: reorder levels / low-stock alerts, supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.
+- Auto-issue: `store.autoIssue(order, force?)` runs when an order is saved as, or moved to, Confirmed / In production / Ready (OrderEdit save, OrderDetail status change)
+  and from the "Issue automatically" button. `lib/stock.ts` `planAllocation` plans it grade by grade (best reels first); a grade is issued **only if stock covers all of it**,
+  otherwise it is reported short and nothing is taken for it. Idempotent (plans only what is still missing, so editing the qty tops up). Moves are tagged note `Automatic`.
+  Turn off with `Settings.autoIssue` (Paper stock → Settings); manual **Issue reels** / **Return** still work. Quotes never issue; cancelling does not return paper by itself.
+- Alerts: `Settings.stockMin` (`gsm-bf` → min kg, edited in Paper stock → Reorder levels). `stockAlerts()` gives `low` (grade under its level) and `short` (open orders need more than is in stock);
+  shown as a red card on Home and Paper stock, a "to buy" count on the More row, and a "Low stock" line in the auto-issue toast. In-app only (no push notifications).
+- `store.commit` now updates `dataRef` synchronously so several changes in one tick (save order → issue paper) build on each other.
+- Not built yet: supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.

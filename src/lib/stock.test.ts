@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { calcBox, layerGrams } from './calc';
-import { availableNet, issuedByGrade, issuedNet, matchingReels, paperNeed, reelBalance, reelDraw, stockByGrade } from './stock';
+import { allocationMessage, availableNet, issuedByGrade, issuedNet, matchingReels, paperNeed, planAllocation, reelBalance, reelDraw, stockAlerts, stockByGrade } from './stock';
 import { emptyData, normalize } from './storage';
-import type { BoxSpec, OrderItem, Reel, StockMove } from './types';
+import type { BoxSpec, Order, OrderItem, Reel, StockMove } from './types';
 
 const spec = (over: Partial<BoxSpec> = {}): BoxSpec => ({
   length: 300,
@@ -103,6 +103,91 @@ describe('side trim', () => {
   });
 });
 
+const order = (status: Order['status'] = 'confirmed', qty = 1000, id = 'o1'): Order => ({
+  id, number: 'ORD-1', customerId: 'c', date: '2026-11-10', dueDate: '', status, items: [item(qty)], discount: 0, taxPct: 0, payments: [], notes: '', createdAt: '', updatedAt: '',
+});
+const asMoves = (a: { moves: { reelId: string; kg: number }[] }, orderId = 'o1'): StockMove[] => a.moves.map((m, i) => ({ id: 'm' + i, reelId: m.reelId, date: '', kind: 'issue', kg: m.kg, orderId, note: '' }));
+
+describe('automatic issue', () => {
+  const reels = [reel('a', 150, 18, 400, 200), reel('b', 150, 18, 370, 100), reel('e', 120, 16, 380, 150)];
+
+  it('issues every grade from the best reels when stock covers it', () => {
+    const a = planAllocation(order(), reels, [], 5);
+    expect(a.short).toEqual([]);
+    expect(a.issued.map((n) => n.key)).toEqual(['150-18', '120-16']);
+    // 122.4 kg usable liner: all 100 kg of the 370 reel (no trim) then 22.4 usable from the 400 reel (÷ 0.925)
+    expect(a.moves[0]).toEqual({ reelId: 'b', kg: -100 });
+    expect(a.moves[1].reelId).toBe('a');
+    expect(-a.moves[1].kg).toBeCloseTo(22.4 / 0.925, 2);
+    expect(a.moves[2].reelId).toBe('e');
+    expect(-a.moves[2].kg).toBeCloseTo(68.5 / (370 / 380), 2);
+  });
+
+  it('is safe to run again: nothing more is issued', () => {
+    const first = planAllocation(order(), reels, [], 5);
+    const second = planAllocation(order(), reels, asMoves(first), 5);
+    expect(second.moves).toEqual([]);
+    expect(second.short).toEqual([]);
+  });
+
+  it('tops up when the quantity is raised later', () => {
+    const first = planAllocation(order('confirmed', 1000), reels, [], 5);
+    const more = planAllocation(order('confirmed', 1200), reels, asMoves(first), 5);
+    expect(more.moves.length).toBeGreaterThan(0);
+  });
+
+  it('issues nothing for a grade that stock cannot cover, but does for the others', () => {
+    const small = [reel('b', 150, 18, 370, 60), reel('e', 120, 16, 380, 150)];
+    const a = planAllocation(order(), small, [], 5);
+    expect(a.short).toHaveLength(1);
+    expect(a.short[0]).toMatchObject({ available: 60 });
+    expect(a.short[0].missing).toBeCloseTo(62.4, 1);
+    expect(a.moves.every((m) => m.reelId === 'e')).toBe(true);
+    const msg = allocationMessage(a);
+    expect(msg).toContain('Issued');
+    expect(msg).toContain('Not enough 18 BF · 150 GSM in stock: need 62.4 kg more (60 kg available)');
+  });
+
+  it('reports everything short when there are no reels', () => {
+    const a = planAllocation(order(), [], [], 5);
+    expect(a.moves).toEqual([]);
+    expect(a.short).toHaveLength(2);
+    expect(allocationMessage(a)).not.toContain('Issued');
+  });
+
+  it('never takes more than a reel holds', () => {
+    const a = planAllocation(order(), [reel('a', 150, 18, 400, 200), reel('b', 150, 18, 370, 100), reel('e', 120, 16, 380, 150)], [], 5);
+    const used = new Map<string, number>();
+    for (const m of a.moves) used.set(m.reelId, (used.get(m.reelId) ?? 0) - m.kg);
+    for (const [id, kg] of used) expect(kg).toBeLessThanOrEqual(reels.find((r) => r.id === id)!.weightIn + 1e-9);
+  });
+});
+
+describe('stock alerts', () => {
+  const reels = [reel('a', 150, 18, 400, 200), reel('b', 150, 18, 370, 100)];
+  it('flags a grade under its reorder level, including grades with no reels left', () => {
+    const al = stockAlerts(reels, [], [], { '150-18': 400, '120-16': 50, '90-12': 0 }, 5);
+    expect(al.low.map((l) => [l.key, l.kg, l.min])).toEqual([
+      ['120-16', 0, 50],
+      ['150-18', 300, 400],
+    ]);
+  });
+  it('is quiet when stock is above the level', () => {
+    expect(stockAlerts(reels, [], [], { '150-18': 250 }, 5).low).toEqual([]);
+  });
+  it('flags grades the open orders still need more of than is in stock', () => {
+    const al = stockAlerts(reels, [], [order()], {}, 5);
+    expect(al.short.map((s) => s.key)).toEqual(['120-16']); // no 120 GSM reel at all
+    expect(al.short[0].missing).toBeCloseTo(68.5, 1);
+  });
+  it('ignores quotes and paper already issued', () => {
+    expect(stockAlerts([], [], [order('quote')], {}, 5).short).toEqual([]);
+    const full = [reel('a', 150, 18, 400, 200), reel('b', 150, 18, 370, 100), reel('e', 120, 16, 380, 150)];
+    const issued = asMoves(planAllocation(order(), full, [], 5));
+    expect(stockAlerts(full, issued, [order()], {}, 5).short).toEqual([]);
+  });
+});
+
 describe('older backups', () => {
   it('load with no reels', () => {
     const d = emptyData() as unknown as Record<string, unknown>;
@@ -112,6 +197,8 @@ describe('older backups', () => {
     expect(n.reels).toEqual([]);
     expect(n.stockMoves).toEqual([]);
     expect(n.settings.stockWastePct).toBe(5);
+    expect(n.settings.autoIssue).toBe(true);
+    expect(n.settings.stockMin).toEqual({});
   });
   it('keep reels and movements', () => {
     const d = emptyData();

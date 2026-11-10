@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Box, Building2, Calculator, CircleHelp, DatabaseBackup, Layers, Plus } from 'lucide-react';
-import { stockByGrade } from '../lib/stock';
+import { stockAlerts, stockByGrade } from '../lib/stock';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { specLabel } from '../lib/calc';
@@ -10,11 +10,13 @@ import { Empty, Field, Header, List, NumInput, Page, Row, Section, Segmented, Fa
 
 const iconCls = 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary';
 
-const stockSub = (reels: AppData['reels'], moves: AppData['stockMoves']) => {
-  const g = stockByGrade(reels, moves);
+const stockSub = (d: AppData) => {
+  const g = stockByGrade(d.reels, d.stockMoves);
   if (!g.length) return 'Reels, issue to orders';
   const kg = g.reduce((s, x) => s + x.kg, 0);
-  return `${Math.round(kg).toLocaleString('en-IN')} kg · ${g.reduce((s, x) => s + x.reels.length, 0)} reels`;
+  const a = stockAlerts(d.reels, d.stockMoves, d.orders, d.settings.stockMin, d.settings.stockWastePct);
+  const n = a.low.length + a.short.length;
+  return `${Math.round(kg).toLocaleString('en-IN')} kg · ${g.reduce((s, x) => s + x.reels.length, 0)} reels${n ? ` · ${n} to buy` : ''}`;
 };
 
 export function More() {
@@ -45,7 +47,7 @@ export function More() {
                 </span>
               }
               title="Paper stock"
-              sub={stockSub(data.reels, data.stockMoves)}
+              sub={stockSub(data)}
             />
             <Row
               onClick={() => nav.push({ name: 'company' })}

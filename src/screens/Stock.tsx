@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Layers, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
+import { AlertTriangle, Layers, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { fmtDate, fmtDateTime, money0, num, todayISO } from '../lib/format';
-import { gradeLabel, reelBalance, stockByGrade } from '../lib/stock';
+import { gradeFromKey, gradeKey, gradeLabel, reelBalance, stockAlerts, stockByGrade } from '../lib/stock';
 import type { Reel, StockMoveKind } from '../lib/types';
 import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, Section, Segmented, Sheet, Stat, Toggle } from '../ui';
 import { Missing } from './Customers';
@@ -22,6 +22,11 @@ export function StockList() {
   const reelCount = groups.reduce((s, g) => s + g.reels.filter((r) => r.balance > 0.001).length, 0);
   const value = groups.reduce((s, g) => s + g.value, 0);
   const add = () => nav.push({ name: 'reelEdit' });
+  const alerts = stockAlerts(data.reels, data.stockMoves, data.orders, data.settings.stockMin, data.settings.stockWastePct);
+  const lowKeys = new Set(alerts.low.map((l) => l.key));
+  const [levelSheet, setLevelSheet] = useState<{ key?: string } | null>(null);
+  const levels = Object.entries(data.settings.stockMin || {}).filter(([, v]) => v > 0);
+  const haveKg = new Map(stockByGrade(data.reels, data.stockMoves).map((g) => [g.key, g.kg]));
 
   return (
     <>
@@ -32,6 +37,24 @@ export function StockList() {
           <Stat label="Reels" value={String(reelCount)} />
           <Stat label="Value" value={money0(value, data.settings.currency)} />
         </div>
+
+        {(alerts.low.length > 0 || alerts.short.length > 0) && (
+          <div className="mb-5 space-y-1.5 rounded-2xl bg-bad/10 p-4 text-bad">
+            <div className="flex items-center gap-2 text-[14px] font-bold">
+              <AlertTriangle size={18} /> Time to buy paper
+            </div>
+            {alerts.low.map((l) => (
+              <p key={'l' + l.key} className="text-[13.5px]">
+                <b>{gradeLabel(l.gsm, l.bf)}</b>: {l.kg > 0 ? kg(l.kg) : 'none'} left, keep at least {kg(l.min)}
+              </p>
+            ))}
+            {alerts.short.map((x) => (
+              <p key={'s' + x.key} className="text-[13.5px]">
+                <b>{gradeLabel(x.gsm, x.bf)}</b>: open orders need {kg(x.missing)} more than is in stock
+              </p>
+            ))}
+          </div>
+        )}
 
         {groups.length === 0 ? (
           <div className="card">
@@ -48,7 +71,16 @@ export function StockList() {
           </div>
         ) : (
           groups.map((g) => (
-            <Section key={g.key} title={gradeLabel(g.gsm, g.bf)} action={<span className="tnum text-[13px] font-semibold text-muted-foreground">{kg(g.kg)}</span>}>
+            <Section
+              key={g.key}
+              title={gradeLabel(g.gsm, g.bf)}
+              action={
+                <span className={`tnum text-[13px] font-semibold ${lowKeys.has(g.key) ? 'text-bad' : 'text-muted-foreground'}`}>
+                  {lowKeys.has(g.key) && 'Low · '}
+                  {kg(g.kg)}
+                </span>
+              }
+            >
               <List>
                 {g.reels.map(({ reel, balance }) => (
                   <Row
@@ -73,8 +105,37 @@ export function StockList() {
           ))
         )}
 
+        <Section title="Reorder levels" action={<button className="text-[14px] font-semibold text-primary" onClick={() => setLevelSheet({})}>+ Add level</button>}>
+          {levels.length === 0 ? (
+            <div className="card p-5 text-center text-[14px] text-muted-foreground">Set the least paper you want to keep for each grade and BoxBook warns you here and on Home when stock drops below it.</div>
+          ) : (
+            <List>
+              {levels.map(([key, min]) => {
+                const have = haveKg.get(key) ?? 0;
+                const low = have < min;
+                const { gsm, bf } = gradeFromKey(key);
+                return (
+                  <Row
+                    key={key}
+                    onClick={() => setLevelSheet({ key })}
+                    title={gradeLabel(gsm, bf)}
+                    sub={`Keep at least ${kg(min)} · have ${kg(have)}`}
+                    right={low ? <span className="chip bg-bad/12 text-bad">Low</span> : undefined}
+                  />
+                );
+              })}
+            </List>
+          )}
+        </Section>
+
         <Section title="Settings">
           <div className="card space-y-4 p-4">
+            <Toggle
+              checked={data.settings.autoIssue}
+              onChange={(v) => updateSettings({ autoIssue: v })}
+              label="Issue paper automatically"
+              desc="When an order is confirmed, take its paper from the reels if all of it is in stock. If not, you are told what is short and nothing is taken for that grade."
+            />
             <Field label="Extra paper to plan for" hint="Added to the calculated need on every order for start-up waste and spoilage. Side trim from the reel width is worked out separately.">
               <NumInput value={data.settings.stockWastePct} onValue={(v) => updateSettings({ stockWastePct: Math.max(0, v) })} suffix="%" />
             </Field>
@@ -83,7 +144,69 @@ export function StockList() {
         </Section>
       </Page>
       {groups.length > 0 && <Fab label="Add reel" icon={<Plus size={20} />} onClick={add} />}
+      <LevelSheet state={levelSheet} onClose={() => setLevelSheet(null)} />
     </>
+  );
+}
+
+function LevelSheet({ state, onClose }: { state: { key?: string } | null; onClose: () => void }) {
+  const { data, updateSettings, toast } = useStore();
+  const editing = state?.key;
+  const [bf, setBf] = useState(0);
+  const [gsm, setGsm] = useState(0);
+  const [min, setMin] = useState(0);
+  const [loaded, setLoaded] = useState<string | null | undefined>(undefined);
+  const id = state ? (editing ?? '') : null;
+  if (id !== loaded) {
+    // (re)load the form when the sheet opens
+    setLoaded(id);
+    if (state) {
+      const g = editing ? gradeFromKey(editing) : { gsm: 0, bf: 0 };
+      setBf(g.bf);
+      setGsm(g.gsm);
+      setMin(editing ? data.settings.stockMin[editing] || 0 : 0);
+    }
+  }
+  const save = () => {
+    if (!(bf > 0 && gsm > 0 && min > 0)) return;
+    updateSettings({ stockMin: { ...data.settings.stockMin, [gradeKey(gsm, bf)]: min } });
+    toast('Reorder level saved');
+    onClose();
+  };
+  const remove = () => {
+    if (!editing) return;
+    const next = { ...data.settings.stockMin };
+    delete next[editing];
+    updateSettings({ stockMin: next });
+    toast('Reorder level removed');
+    onClose();
+  };
+  return (
+    <Sheet open={!!state} onClose={onClose} title={editing ? `Level for ${gradeLabel(gradeFromKey(editing).gsm, gradeFromKey(editing).bf)}` : 'New reorder level'}>
+      <div className="space-y-4">
+        {!editing && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="BF">
+              <NumInput value={bf} onValue={setBf} />
+            </Field>
+            <Field label="GSM">
+              <NumInput value={gsm} onValue={setGsm} />
+            </Field>
+          </div>
+        )}
+        <Field label="Keep at least" hint="You are warned when the paper in stock for this grade falls below this.">
+          <NumInput value={min} onValue={setMin} suffix="kg" />
+        </Field>
+        <button className="btn-primary w-full" disabled={!(bf > 0 && gsm > 0 && min > 0)} onClick={save}>
+          Save
+        </button>
+        {editing && (
+          <button className="btn-danger w-full" onClick={remove}>
+            Remove level
+          </button>
+        )}
+      </div>
+    </Sheet>
   );
 }
 

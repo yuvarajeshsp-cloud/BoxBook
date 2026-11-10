@@ -37,6 +37,8 @@ export const defaultSettings: Settings = {
   lastDriveBackupAt: '',
   lastDriveAutoBackup: '',
   stockWastePct: 5,
+  autoIssue: true,
+  stockMin: {},
 };
 
 export function emptyData(): AppData {

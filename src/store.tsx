@@ -4,6 +4,7 @@ import { emptyData, isNative, loadData, saveData } from './lib/storage';
 import { backupName, saveBackupOnDevice, toJson } from './lib/backup';
 import { driveSession, uploadDriveBackup } from './lib/drive';
 import { todayISO, uid } from './lib/format';
+import { allocationMessage, planAllocation, stockAlerts } from './lib/stock';
 import type { AppData, Customer, Order, Reel, SavedBox, Settings, StockMove, StockMoveKind } from './lib/types';
 
 interface Store {
@@ -21,6 +22,12 @@ interface Store {
   /** `kg` is signed: negative takes paper off the reel. */
   addStockMove: (m: { reelId: string; kind: StockMoveKind; kg: number; orderId?: string; note?: string }) => StockMove;
   deleteStockMove: (id: string) => void;
+  /**
+   * Issues the paper an order still needs from the reels when all of it is in stock (per grade); reports what is short.
+   * Does nothing unless the order is confirmed, in production or ready. `force` ignores the "issue automatically" setting.
+   * Returns a message to show the user ('' when there was nothing to do).
+   */
+  autoIssue: (order: Order, force?: boolean) => string;
   updateSettings: (patch: Partial<Settings>) => void;
   replaceAll: (d: AppData) => Promise<void>;
   backupNow: () => Promise<void>;
@@ -43,17 +50,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((msg: string) => {
     setToastMsg(msg);
     window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToastMsg(''), 2600);
+    toastTimer.current = window.setTimeout(() => setToastMsg(''), 2600 + Math.min(5000, msg.length * 40));
   }, []);
 
+  // dataRef is updated right away, so several changes in one tick (e.g. save an order, then issue its paper) build on each other.
   const commit = useCallback((fn: (d: AppData) => AppData) => {
-    setData((prev) => {
-      const next = fn(prev);
-      dataRef.current = next;
-      window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => saveData(dataRef.current), 250);
-      return next;
-    });
+    const next = fn(dataRef.current);
+    dataRef.current = next;
+    setData(next);
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => saveData(dataRef.current), 250);
   }, []);
 
   /** Once a day, keep a copy of all data on the phone. */
@@ -212,6 +218,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const deleteStockMove = (id: string) => commit((d) => ({ ...d, stockMoves: d.stockMoves.filter((m) => m.id !== id) }));
 
+  const autoIssue: Store['autoIssue'] = (order, force = false) => {
+    const d = dataRef.current;
+    if (!(force || d.settings.autoIssue)) return '';
+    if (order.status !== 'confirmed' && order.status !== 'production' && order.status !== 'ready') return '';
+    const plan = planAllocation(order, d.reels, d.stockMoves, d.settings.stockWastePct);
+    const stamp = now();
+    const added: StockMove[] = plan.moves.map((m) => ({ id: uid(), reelId: m.reelId, date: stamp, kind: 'issue', kg: m.kg, orderId: order.id, orderNo: order.number, note: 'Automatic' }));
+    if (added.length) commit((x) => ({ ...x, stockMoves: [...added, ...x.stockMoves] }));
+    const touched = new Set(plan.issued.map((n) => n.key));
+    const lowAfter = stockAlerts(d.reels, [...added, ...d.stockMoves], [], d.settings.stockMin, 0).low.filter((l) => touched.has(l.key));
+    return allocationMessage(plan, lowAfter);
+  };
+
   const updateSettings = (patch: Partial<Settings>) => commit((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
 
   const replaceAll = async (incoming: AppData) => {
@@ -237,7 +256,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ data, ready, upsertCustomer, deleteCustomer, upsertOrder, deleteOrder, upsertBox, deleteBox, upsertReel, deleteReel, addStockMove, deleteStockMove, updateSettings, replaceAll, backupNow, toast, toastMsg }}
+      value={{ data, ready, upsertCustomer, deleteCustomer, upsertOrder, deleteOrder, upsertBox, deleteBox, upsertReel, deleteReel, addStockMove, deleteStockMove, autoIssue, updateSettings, replaceAll, backupNow, toast, toastMsg }}
     >
       {children}
     </Ctx.Provider>

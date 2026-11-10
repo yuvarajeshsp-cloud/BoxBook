@@ -2,8 +2,8 @@
  * Paper-reel stock. A reel's balance is what came in plus every movement against it (issue, return, waste, adjust).
  * The paper an order needs comes from the box spec on its items: kg per layer grade, and the narrowest reel that can be cut.
  */
-import { deckleAllowance, layerGrams } from './calc';
-import type { OrderItem, Reel, StockMove } from './types';
+import { deckleAllowance, isOpen, layerGrams } from './calc';
+import type { Order, OrderItem, Reel, StockMove } from './types';
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -131,3 +131,98 @@ export function stockByGrade(reels: Reel[], moves: StockMove[], includeEmpty = f
   for (const g of map.values()) g.reels.sort((a, b) => a.reel.width - b.reel.width || a.balance - b.balance);
   return [...map.values()].sort((a, b) => a.gsm - b.gsm || a.bf - b.bf);
 }
+
+export function gradeFromKey(key: string): { gsm: number; bf: number } {
+  const [gsm, bf] = key.split('-').map(Number);
+  return { gsm: gsm || 0, bf: bf || 0 };
+}
+
+export interface Allocation {
+  /** Take-offs to record: negative kg per reel, one grade after another. */
+  moves: { reelId: string; kg: number }[];
+  /** Grades that could be issued in full. */
+  issued: PaperNeed[];
+  /** Grades that could not: what is still missing and what is in stock. */
+  short: { need: PaperNeed; missing: number; available: number }[];
+  /** Kg taken off reels in total (includes side trim). */
+  drawKg: number;
+}
+
+/**
+ * Works out how to issue the paper an order still needs, grade by grade, from the best-fitting reels.
+ * A grade is issued only when the stock can cover all of it; otherwise it is reported as short and nothing is taken for it.
+ * Safe to run again: it only plans what is still missing after earlier issues.
+ */
+export function planAllocation(order: Pick<Order, 'id' | 'items'>, reels: Reel[], moves: StockMove[], wastePct: number): Allocation {
+  const out: Allocation = { moves: [], issued: [], short: [], drawKg: 0 };
+  const extra = 1 + (wastePct || 0) / 100;
+  let local = moves;
+  for (const need of paperNeed(order.items)) {
+    const plan = Math.round(need.kg * extra * 10) / 10;
+    let remaining = r3(plan - issuedNet(order.id, need, reels, local));
+    if (remaining <= 0.05) continue;
+    const choices = matchingReels(need, reels, local);
+    const available = r3(choices.reduce((s, c) => s + c.balance * usable(c.reel.width, need.minWidth), 0));
+    if (available < remaining - 0.05) {
+      out.short.push({ need, missing: r3(remaining - available), available });
+      continue;
+    }
+    const taken: StockMove[] = [];
+    for (const c of choices) {
+      if (remaining <= 0.001) break;
+      const net = Math.min(remaining, c.balance * usable(c.reel.width, need.minWidth));
+      const draw = Math.min(c.balance, reelDraw(net, c.reel.width, need.minWidth));
+      out.moves.push({ reelId: c.reel.id, kg: -draw });
+      out.drawKg += draw;
+      taken.push({ id: '', reelId: c.reel.id, date: '', kind: 'issue', kg: -draw, orderId: order.id, note: '' });
+      remaining = r3(remaining - net);
+    }
+    local = [...taken, ...local];
+    out.issued.push(need);
+  }
+  out.drawKg = r3(out.drawKg);
+  return out;
+}
+
+export interface StockAlerts {
+  /** Grades under their reorder level. */
+  low: { key: string; gsm: number; bf: number; kg: number; min: number }[];
+  /** Grades the open orders still need more of than is in stock. */
+  short: { key: string; gsm: number; bf: number; missing: number; available: number }[];
+}
+
+export function stockAlerts(reels: Reel[], moves: StockMove[], orders: Order[], minLevels: Record<string, number>, wastePct: number): StockAlerts {
+  const have = new Map(stockByGrade(reels, moves).map((g) => [g.key, g.kg]));
+  const low = Object.entries(minLevels || {})
+    .filter(([, min]) => min > 0)
+    .map(([key, min]) => ({ key, ...gradeFromKey(key), kg: have.get(key) ?? 0, min }))
+    .filter((x) => x.kg < x.min)
+    .sort((a, b) => a.gsm - b.gsm || a.bf - b.bf);
+
+  const extra = 1 + (wastePct || 0) / 100;
+  const total = new Map<string, PaperNeed>();
+  for (const o of orders) {
+    if (!isOpen(o)) continue;
+    for (const n of paperNeed(o.items)) {
+      const left = Math.round(n.kg * extra * 10) / 10 - issuedNet(o.id, n, reels, moves);
+      if (left <= 0.05) continue;
+      const cur = total.get(n.key);
+      total.set(n.key, cur ? { ...cur, kg: cur.kg + left, minWidth: Math.max(cur.minWidth, n.minWidth) } : { ...n, kg: left });
+    }
+  }
+  const short = [...total.values()]
+    .map((n) => ({ n, available: availableNet(n, reels, moves) }))
+    .filter(({ n, available }) => available < n.kg - 0.05)
+    .map(({ n, available }) => ({ key: n.key, gsm: n.gsm, bf: n.bf, missing: r3(n.kg - available), available }));
+  return { low, short };
+}
+
+/** One-line result of an automatic issue, for a toast. Empty when there was nothing to do. */
+export function allocationMessage(a: Allocation, lowAfter: StockAlerts['low'] = []): string {
+  const parts: string[] = [];
+  if (a.issued.length) parts.push(`Issued ${num1(a.drawKg)} kg of paper from the reels`);
+  for (const s of a.short) parts.push(`Not enough ${gradeLabel(s.need.gsm, s.need.bf)} in stock: need ${num1(s.missing)} kg more${s.available > 0 ? ` (${num1(s.available)} kg available)` : ''}. Nothing issued for it`);
+  if (lowAfter.length) parts.push(`Low stock: ${lowAfter.map((l) => `${gradeLabel(l.gsm, l.bf)} ${num1(l.kg)} kg`).join(', ')}`);
+  return parts.join('. ');
+}
+const num1 = (n: number) => String(Math.round(n * 10) / 10);

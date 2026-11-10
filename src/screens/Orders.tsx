@@ -131,7 +131,7 @@ export function OrdersList() {
 }
 
 export function OrderDetail({ id }: { id: string }) {
-  const { data, upsertOrder, updateSettings, deleteOrder, toast } = useStore();
+  const { data, upsertOrder, updateSettings, deleteOrder, autoIssue, toast } = useStore();
   const nav = useNav();
   const [invBusy, setInvBusy] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -149,7 +149,8 @@ export function OrderDetail({ id }: { id: string }) {
   const setStatus = (s: OrderStatus) => {
     if (s === o.status) return;
     upsertOrder({ ...o, status: s });
-    toast(`Marked ${STATUS[s].label.toLowerCase()}`);
+    const paper = autoIssue({ ...o, status: s });
+    toast(`Marked ${STATUS[s].label.toLowerCase()}${paper ? `. ${paper}` : ''}`);
   };
 
   const text = orderText(o, c, data.settings);
@@ -484,7 +485,7 @@ function PaymentSheet({ open, onClose, order }: { open: boolean; onClose: () => 
 }
 
 export function OrderEdit({ id, customerId: initialCustomer, prefill }: { id?: string; customerId?: string; prefill?: OrderItem }) {
-  const { data, upsertOrder, upsertCustomer, toast } = useStore();
+  const { data, upsertOrder, upsertCustomer, autoIssue, toast } = useStore();
   const nav = useNav();
   const existing = id ? data.orders.find((o) => o.id === id) : undefined;
   const cur = data.settings.currency;
@@ -546,7 +547,8 @@ export function OrderEdit({ id, customerId: initialCustomer, prefill }: { id?: s
       invoiceNo: invoiceNo.trim() || undefined,
       invoice: Object.fromEntries(Object.entries(inv).filter(([, v]) => (v || '').trim())) as InvoiceMeta,
     });
-    toast(existing ? 'Order updated' : `${rec.number} created`);
+    const paper = autoIssue(rec);
+    toast(`${existing ? 'Order updated' : `${rec.number} created`}${paper ? `. ${paper}` : ''}`);
     if (existing) nav.back();
     else nav.replace({ name: 'order', id: rec.id });
   };

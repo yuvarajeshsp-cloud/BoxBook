@@ -181,6 +181,10 @@ export interface Settings {
   lastDriveAutoBackup: string; // yyyy-mm-dd
   /** Extra paper to plan for beyond the calculated need (start-up, spoilage), percent. */
   stockWastePct: number;
+  /** Issue paper from the reels automatically when an order is confirmed and enough is in stock. */
+  autoIssue: boolean;
+  /** Reorder levels: minimum kg to keep per grade, keyed `${gsm}-${bf}`. */
+  stockMin: Record<string, number>;
 }
 
 export interface AppData {

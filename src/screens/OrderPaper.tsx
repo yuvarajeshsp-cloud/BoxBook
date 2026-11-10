@@ -11,7 +11,7 @@ const kg = (n: number) => `${num(n, 1)} kg`;
 
 /** Paper an order needs, what has been issued from the reels, and what is short. Shown on the order page. */
 export function OrderPaper({ order }: { order: Order }) {
-  const { data } = useStore();
+  const { data, autoIssue, toast } = useStore();
   const nav = useNav();
   const [issueFor, setIssueFor] = useState<string | null>(null);
   const [returning, setReturning] = useState<string | null>(null);
@@ -79,7 +79,22 @@ export function OrderPaper({ order }: { order: Order }) {
               </div>
             );
           })}
-          {!canIssue && needs.length > 0 && <p className="px-4 py-3 text-[12.5px] text-muted-foreground">Mark the order confirmed to issue paper from the reels.</p>}
+          {!canIssue && needs.length > 0 && (
+            <p className="px-4 py-3 text-[12.5px] text-muted-foreground">
+              {order.status === 'cancelled' ? 'This order is cancelled. Return any paper it took, below.' : `Paper is issued from the reels ${data.settings.autoIssue ? 'automatically ' : ''}when the order is confirmed.`}
+            </p>
+          )}
+          {canIssue && rows.some((r) => r.remaining > 0) && (
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[12.5px] text-muted-foreground">{data.settings.autoIssue ? 'Short earlier? Add the reels, then try again.' : 'Automatic issue is off in Paper stock.'}</span>
+              <button
+                className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-[13px] font-bold text-white active:opacity-90"
+                onClick={() => toast(autoIssue(order, true) || 'Nothing more to issue')}
+              >
+                Issue automatically
+              </button>
+            </div>
+          )}
           {taken.length > 0 && (
             <div className="bg-muted/30">
               <div className="px-4 pb-1 pt-3 text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">Taken from reels</div>

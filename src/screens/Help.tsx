@@ -55,7 +55,15 @@ const GROUPS: { title: string; items: Qa[] }[] = [
       },
       {
         q: 'How does an order use the stock?',
-        a: 'An order made from calculator boxes shows “Paper needed” per grade (BF and GSM): the kg from the box size and quantity, plus the extra % you set in Paper stock for start-up waste. Once the order is Confirmed, tap Issue reels, pick a reel and the kg to take. The reel balance goes down and the order records which reels it used.',
+        a: 'An order made from calculator boxes shows “Paper needed” per grade (BF and GSM): the kg from the box size and quantity, plus the extra % you set in Paper stock for start-up waste. When you confirm the order (or save it as confirmed), BoxBook takes the paper from the best-fitting reels by itself, if all of that grade is in stock. If something is short you get a message saying which grade and how many kg, and nothing is taken for that grade. Turn this off in Paper stock if you prefer to issue by hand.',
+      },
+      {
+        q: 'A grade was short. What now?',
+        a: 'Buy or add the reels (More → Paper stock → Add reel), then open the order and tap “Issue automatically”. You can also tap “Issue reels” on a grade to choose the reels and kg yourself.',
+      },
+      {
+        q: 'How do low-stock alerts work?',
+        a: 'In Paper stock → Reorder levels, set the least kg you want to keep for a grade. When stock falls below it, a red “Time to buy paper” card appears on Home and in Paper stock. The same card also appears when open orders need more of a grade than you have.',
       },
       {
         q: 'Which reel should I pick?',
