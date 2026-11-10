@@ -54,6 +54,10 @@ const GROUPS: { title: string; items: Qa[] }[] = [
         a: 'Open More → Paper stock and tap Add reel. Enter BF, GSM, width (mm), weight (kg) and the rate, plus the reel number and supplier. “Save & add another” keeps the grade and supplier, which is quick when several reels arrive together.',
       },
       {
+        q: 'Tiles or list?',
+        a: 'Paper stock opens as tiles: one card per reel with the kg left and a bar that empties as the reel is used. Tap the list icon next to the switch for a compact list; BoxBook remembers your choice. “By paper grade” and “By reel size” both work in either layout.',
+      },
+      {
         q: 'What are common reel sizes?',
         a: 'In More → Paper stock → Common reel sizes, add the widths you usually buy (for example 1000, 1200 mm). Switch the list to “By reel size” to see, for each width, the reels in stock, the kg in stock and the kg you have bought. “Purchased …” under a size opens the reel form with that width ready. Set “Reels” to add a batch at once (each with the same weight). The order page also shows the nearest common size that fits the box.',
       },

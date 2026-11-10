@@ -144,5 +144,8 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - Common reel sizes: `Settings.reelWidths` (mm, edited in Paper stock → Common reel sizes). Paper stock has a "By grade | By reel size" switch; `stockByWidth()` groups reels by width
   (every common size, plus any other width that has reels) with kg in stock and kg **purchased** (Σ `weightIn`, used-up reels included). "Purchased <size> mm" opens `reelEdit{width}`;
   the reel form has size chips and a "Reels" count (adds N reels, numbered with `incrementNumber`). `nearestWidth()` shows the nearest common size on the order page.
+- Paper stock UI: a **Tiles | List** switch (remembered in localStorage `boxbook-stock-layout`, default tiles) beside the By grade / By reel size switch. `ReelTile` shows reel no.,
+  width (or grade in size view), kg left, a fill bar (amber at ≤15% "Almost done", grey "Used up") and supplier/date; every group ends with a dashed "Add reel" /
+  "Purchased <size> mm" tile (list layout: a footer row). "Add reel" under a grade opens the reel form with that BF/GSM filled (`reelEdit{bf,gsm}`).
 - `store.commit` now updates `dataRef` synchronously so several changes in one tick (save order → issue paper) build on each other.
 - Not built yet: supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.

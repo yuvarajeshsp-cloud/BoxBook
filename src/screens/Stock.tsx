@@ -1,16 +1,103 @@
 import { useState } from 'react';
-import { AlertTriangle, Layers, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
+import { AlertTriangle, Layers, LayoutGrid, List as ListIcon, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { fmtDate, fmtDateTime, money0, num, todayISO } from '../lib/format';
 import { gradeFromKey, gradeKey, gradeLabel, incrementNumber, reelBalance, stockAlerts, stockByGrade, stockByWidth } from '../lib/stock';
 import type { Reel, StockMoveKind } from '../lib/types';
-import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, Section, Segmented, Sheet, Stat, Toggle } from '../ui';
+import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, Section, Segmented, Sheet, Toggle } from '../ui';
 import { Missing } from './Customers';
 
 const kg = (n: number) => `${num(n, 1)} kg`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 const KIND: Record<StockMoveKind, string> = { issue: 'Issued', return: 'Returned', waste: 'Waste / trim', adjust: 'Correction' };
+
+type Layout = 'tiles' | 'list';
+const LAYOUT_KEY = 'boxbook-stock-layout';
+const readLayout = (): Layout => {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'tiles';
+  } catch {
+    return 'tiles';
+  }
+};
+
+type ReelItem = { reel: Reel; balance: number };
+
+/** One reel as a tile: number, size or grade, how much is left as a bar, and where it came from. */
+function ReelTile({ reel, balance, mode, onOpen }: ReelItem & { mode: 'grade' | 'size'; onOpen: () => void }) {
+  const used = balance <= 0.001;
+  const pct = reel.weightIn > 0 ? Math.max(0, Math.min(100, (balance / reel.weightIn) * 100)) : 0;
+  const lowReel = !used && pct <= 15;
+  return (
+    <button type="button" onClick={onOpen} className={`card flex flex-col p-3.5 text-left transition active:scale-[0.98] ${used ? 'opacity-60' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12.5px] font-semibold text-muted-foreground">#{reel.number}</span>
+        {used ? <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Used up</span> : lowReel ? <span className="text-[11px] font-bold uppercase tracking-wide text-warn">Almost done</span> : null}
+      </div>
+      <span className="tnum mt-1.5 inline-block self-start rounded-md bg-primary/12 px-1.5 py-0.5 text-[12px] font-bold text-primary">{mode === 'grade' ? `${num(reel.width, 0)} mm` : gradeLabel(reel.gsm, reel.bf)}</span>
+      <div className="tnum mt-3 text-[26px] font-bold leading-none tracking-tight">
+        {num(balance, 1)}
+        <span className="ml-1 text-[13px] font-semibold text-muted-foreground">kg</span>
+      </div>
+      <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${used ? 'bg-muted-foreground/40' : lowReel ? 'bg-warn' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="tnum mt-1 flex justify-between text-[11.5px] text-muted-foreground">
+        <span>of {num(reel.weightIn, 0)} kg</span>
+        <span>{Math.round(pct)}% left</span>
+      </div>
+      <div className="mt-2 truncate text-[12px] text-muted-foreground">
+        {reel.supplier || 'No supplier'} · {fmtDate(reel.receivedAt)}
+      </div>
+    </button>
+  );
+}
+
+/** A group's reels, as tiles or as a compact list, with an "add" tile / row at the end. */
+function ReelItems({ layout, items, mode, addLabel, onOpen, onAdd }: { layout: Layout; items: ReelItem[]; mode: 'grade' | 'size'; addLabel: string; onOpen: (id: string) => void; onAdd: () => void }) {
+  if (layout === 'tiles') {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {items.map((it) => (
+          <ReelTile key={it.reel.id} {...it} mode={mode} onOpen={() => onOpen(it.reel.id)} />
+        ))}
+        <button type="button" onClick={onAdd} className="grid min-h-[150px] place-items-center rounded-2xl border-2 border-dashed border-border p-3 text-primary transition active:scale-[0.98] active:bg-muted/60">
+          <span className="flex flex-col items-center gap-1.5 text-center text-[13.5px] font-semibold">
+            <Plus size={22} />
+            {addLabel}
+          </span>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="card divide-y divide-border/60 overflow-hidden">
+      {items.map(({ reel, balance }) => (
+        <Row
+          key={reel.id}
+          onClick={() => onOpen(reel.id)}
+          title={
+            <>
+              #{reel.number} <span className="font-normal text-muted-foreground">· {mode === 'grade' ? `${num(reel.width, 0)} mm` : gradeLabel(reel.gsm, reel.bf)}</span>
+            </>
+          }
+          sub={`${reel.supplier || 'No supplier'} · ${fmtDate(reel.receivedAt)}`}
+          right={
+            <span className="text-right">
+              <span className={`tnum block text-[15px] font-bold ${balance <= 0.001 ? 'text-muted-foreground' : ''}`}>{kg(balance)}</span>
+              <span className="tnum block text-[11.5px] text-muted-foreground">of {num(reel.weightIn, 0)}</span>
+            </span>
+          }
+        />
+      ))}
+      <button className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-[14px] font-semibold text-primary active:bg-muted/70" onClick={onAdd}>
+        <Plus size={16} /> {addLabel}
+      </button>
+    </div>
+  );
+}
 
 /** Paper stock by grade (BF · GSM), reel by reel. */
 export function StockList() {
@@ -23,6 +110,15 @@ export function StockList() {
   const value = groups.reduce((s, g) => s + g.value, 0);
   const add = () => nav.push({ name: 'reelEdit' });
   const [view, setView] = useState<'grade' | 'size'>('grade');
+  const [layout, setLayoutState] = useState<Layout>(readLayout);
+  const setLayout = (l: Layout) => {
+    setLayoutState(l);
+    try {
+      localStorage.setItem(LAYOUT_KEY, l);
+    } catch {
+      /* private mode: just not remembered */
+    }
+  };
   const [newWidth, setNewWidth] = useState(0);
   const widths = data.settings.reelWidths || [];
   const sizes = stockByWidth(data.reels, data.stockMoves, widths, showEmpty);
@@ -43,9 +139,18 @@ export function StockList() {
       <Header title="Paper stock" subtitle="Reels in the godown" back />
       <Page>
         <div className="mb-5 grid grid-cols-3 gap-3">
-          <Stat label="In stock" value={kg(totalKg)} tone="kraft" />
-          <Stat label="Reels" value={String(reelCount)} />
-          <Stat label="Value" value={money0(value, data.settings.currency)} />
+          {(
+            [
+              ['In stock', `${num(totalKg, totalKg < 100 ? 1 : 0)} kg`, 'text-primary'],
+              ['Reels', String(reelCount), ''],
+              ['Value', value >= 100000 ? `${data.settings.currency}${num(value / 100000, 1)} L` : money0(value, data.settings.currency), ''],
+            ] as const
+          ).map(([label, v, cls]) => (
+            <div key={label} className="card px-3 py-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+              <div className={`tnum mt-1 text-[19px] font-bold leading-tight tracking-tight sm:text-[22px] ${cls}`}>{v}</div>
+            </div>
+          ))}
         </div>
 
         {(alerts.low.length > 0 || alerts.short.length > 0) && (
@@ -67,15 +172,37 @@ export function StockList() {
         )}
 
         {(data.reels.length > 0 || widths.length > 0) && (
-          <div className="mb-5">
-            <Segmented<'grade' | 'size'>
-              value={view}
-              onChange={setView}
-              options={[
-                { value: 'grade', label: 'By paper grade' },
-                { value: 'size', label: 'By reel size' },
-              ]}
-            />
+          <div className="mb-5 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Segmented<'grade' | 'size'>
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'grade', label: 'By paper grade' },
+                  { value: 'size', label: 'By reel size' },
+                ]}
+              />
+            </div>
+            <div className="flex shrink-0 rounded-xl bg-muted p-1" role="group" aria-label="Layout">
+              {(
+                [
+                  ['tiles', 'Tiles', LayoutGrid],
+                  ['list', 'List', ListIcon],
+                ] as const
+              ).map(([value, label, Icon]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={layout === value}
+                  title={label}
+                  onClick={() => setLayout(value)}
+                  className={`grid h-9 w-9 place-items-center rounded-lg transition ${layout === value ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'}`}
+                >
+                  <Icon size={18} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -93,30 +220,15 @@ export function StockList() {
                   </span>
                 }
               >
-                <div className="card divide-y divide-border/60 overflow-hidden">
-                  {g.reels.length === 0 && <p className="px-4 py-3.5 text-[14px] text-muted-foreground">No reels in stock at this size.</p>}
-                  {g.reels.map(({ reel, balance }) => (
-                    <Row
-                      key={reel.id}
-                      onClick={() => nav.push({ name: 'reel', id: reel.id })}
-                      title={
-                        <>
-                          #{reel.number} <span className="font-normal text-muted-foreground">· {gradeLabel(reel.gsm, reel.bf)}</span>
-                        </>
-                      }
-                      sub={`${reel.supplier || 'No supplier'} · ${fmtDate(reel.receivedAt)}`}
-                      right={
-                        <span className="text-right">
-                          <span className={`tnum block text-[15px] font-bold ${balance <= 0.001 ? 'text-muted-foreground' : ''}`}>{kg(balance)}</span>
-                          <span className="tnum block text-[11.5px] text-muted-foreground">of {num(reel.weightIn, 0)}</span>
-                        </span>
-                      }
-                    />
-                  ))}
-                  <button className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-[14px] font-semibold text-primary active:bg-muted/70" onClick={() => nav.push({ name: 'reelEdit', width: g.width })}>
-                    <Plus size={16} /> Purchased {num(g.width, 0)} mm
-                  </button>
-                </div>
+                {g.reels.length === 0 && <p className="mb-2 px-1 text-[13.5px] text-muted-foreground">No reels in stock at this size.</p>}
+                <ReelItems
+                  layout={layout}
+                  items={g.reels}
+                  mode="size"
+                  addLabel={`Purchased ${num(g.width, 0)} mm`}
+                  onOpen={(id) => nav.push({ name: 'reel', id })}
+                  onAdd={() => nav.push({ name: 'reelEdit', width: g.width })}
+                />
               </Section>
             ))
           )
@@ -141,30 +253,18 @@ export function StockList() {
               action={
                 <span className={`tnum text-[13px] font-semibold ${lowKeys.has(g.key) ? 'text-bad' : 'text-muted-foreground'}`}>
                   {lowKeys.has(g.key) && 'Low · '}
-                  {kg(g.kg)}
+                  {plural(g.reels.filter((r) => r.balance > 0.001).length, 'reel')} · {kg(g.kg)}
                 </span>
               }
             >
-              <List>
-                {g.reels.map(({ reel, balance }) => (
-                  <Row
-                    key={reel.id}
-                    onClick={() => nav.push({ name: 'reel', id: reel.id })}
-                    title={
-                      <>
-                        #{reel.number} <span className="font-normal text-muted-foreground">· {reel.width} mm</span>
-                      </>
-                    }
-                    sub={`${reel.supplier || 'No supplier'} · ${fmtDate(reel.receivedAt)}`}
-                    right={
-                      <span className="text-right">
-                        <span className={`tnum block text-[15px] font-bold ${balance <= 0.001 ? 'text-muted-foreground' : ''}`}>{kg(balance)}</span>
-                        <span className="tnum block text-[11.5px] text-muted-foreground">of {num(reel.weightIn, 0)}</span>
-                      </span>
-                    }
-                  />
-                ))}
-              </List>
+              <ReelItems
+                layout={layout}
+                items={g.reels}
+                mode="grade"
+                addLabel="Add reel"
+                onOpen={(id) => nav.push({ name: 'reel', id })}
+                onAdd={() => nav.push({ name: 'reelEdit', bf: g.bf, gsm: g.gsm })}
+              />
             </Section>
           ))
         )}
@@ -462,7 +562,7 @@ function AdjustSheet({ open, onClose, balance, onSave }: { open: boolean; onClos
 }
 
 /** Add or edit a reel. */
-export function ReelEdit({ id, width }: { id?: string; width?: number }) {
+export function ReelEdit({ id, width, bf, gsm }: { id?: string; width?: number; bf?: number; gsm?: number }) {
   const { data, upsertReel, deleteReel, toast } = useStore();
   const nav = useNav();
   const existing = id ? data.reels.find((r) => r.id === id) : undefined;
@@ -470,8 +570,8 @@ export function ReelEdit({ id, width }: { id?: string; width?: number }) {
   const blank = (): Pick<Reel, 'number' | 'supplier' | 'bf' | 'gsm' | 'width' | 'weightIn' | 'rate' | 'receivedAt' | 'note'> => ({
     number: nextNo(),
     supplier: '',
-    bf: 0,
-    gsm: 0,
+    bf: bf ?? 0,
+    gsm: gsm ?? 0,
     width: width ?? 0,
     weightIn: 0,
     rate: 0,
