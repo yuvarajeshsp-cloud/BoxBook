@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ComponentType, type ReactNode } from 'react';
 import { Building2, Calculator, ChevronRight, CircleHelp, DatabaseBackup, FileText, ImagePlus, Layers, ListChecks, Palette, Plus, Trash2, X } from 'lucide-react';
 import { useStore } from '../store';
 import { useNav } from '../nav';
@@ -10,9 +10,10 @@ import type { Settings } from '../lib/types';
 import { Confirm, Field, Header, List, NumInput, Page, Row, Segmented, Sheet, Toggle } from '../ui';
 
 /**
- * App settings: every predefined value of the app on one page (company, invoice and bank, pricing defaults,
- * paper stock rules, payment methods, backup, appearance). Typed fields are saved with the Save bar;
- * switches, chips and lists apply as soon as you change them.
+ * App settings: every predefined value of the app, one section per page.
+ * Phone: a list of sections; tap one to open it (swipe from the left edge or press back to return) and use the
+ * tabs at the top to hop between sections. Computer: the same tabs, no list.
+ * Typed fields are saved with the Save bar (one draft across all sections); switches, chips and lists apply at once.
  */
 
 // What the Save bar covers: the typed fields.
@@ -33,27 +34,48 @@ const FORM_KEYS: FormKeys[] = [
 const pick = (s: Settings): Form => Object.fromEntries(FORM_KEYS.map((k) => [k, s[k]])) as unknown as Form;
 
 type SectionId = 'company' | 'invoice' | 'pricing' | 'stock' | 'lists' | 'backup' | 'appearance';
-const SECTIONS: { id: SectionId; label: string; icon: ComponentType<{ size?: number; className?: string }> }[] = [
-  { id: 'company', label: 'Business', icon: Building2 },
-  { id: 'invoice', label: 'Invoice & bank', icon: FileText },
-  { id: 'pricing', label: 'Pricing', icon: Calculator },
-  { id: 'stock', label: 'Paper stock', icon: Layers },
-  { id: 'lists', label: 'Lists', icon: ListChecks },
-  { id: 'backup', label: 'Backup', icon: DatabaseBackup },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
+const THEME_LABEL: Record<Settings['theme'], string> = { system: 'Follows your phone', light: 'Light', dark: 'Dark' };
+const SECTIONS: { id: SectionId; label: string; icon: ComponentType<{ size?: number; className?: string }>; summary: (s: Settings) => string }[] = [
+  { id: 'company', label: 'Business', icon: Building2, summary: (s) => s.businessName || 'Name, logo, GSTIN, address' },
+  { id: 'invoice', label: 'Invoice & bank', icon: FileText, summary: (s) => (s.bankName ? `${s.bankName} · next invoice ${s.invoicePrefix}${s.nextInvoiceNo}` : 'Bank details and invoice numbering') },
+  { id: 'pricing', label: 'Pricing', icon: Calculator, summary: (s) => `Profit ${s.defaults.profitPct}% · GST ${s.defaults.taxPct}% · ${s.currency}` },
+  {
+    id: 'stock',
+    label: 'Paper stock',
+    icon: Layers,
+    summary: (s) => {
+      const sizes = (s.reelWidths || []).length;
+      const levels = Object.values(s.stockMin || {}).filter((v) => v > 0).length;
+      return `${s.autoIssue ? 'Auto-issue on' : 'Auto-issue off'} · ${sizes} ${sizes === 1 ? 'size' : 'sizes'} · ${levels} ${levels === 1 ? 'level' : 'levels'}`;
+    },
+  },
+  { id: 'lists', label: 'Lists', icon: ListChecks, summary: (s) => { const n = (s.payModes || []).length; return `${n} payment ${n === 1 ? 'method' : 'methods'}`; } },
+  { id: 'backup', label: 'Backup', icon: DatabaseBackup, summary: (s) => (s.autoBackup ? `Daily backup on · keep ${s.keepBackups} days` : 'Daily backup off') },
+  { id: 'appearance', label: 'Appearance', icon: Palette, summary: (s) => THEME_LABEL[s.theme] },
 ];
+const isSection = (v?: string): v is SectionId => SECTIONS.some((x) => x.id === v);
+const iconBox = 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary';
 
 const kg = (n: number) => `${num(n, 1)} kg`;
 
-function Block({ id, title, desc, children }: { id: SectionId; title: string; desc?: string; children: React.ReactNode }) {
-  const Icon = SECTIONS.find((s) => s.id === id)!.icon;
+/** True on a computer-sized screen, where sections are tabs only (no list page). */
+function useIsDesktop() {
+  const q = '(min-width: 1024px)';
+  const [wide, setWide] = useState(() => typeof matchMedia === 'function' && matchMedia(q).matches);
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const m = matchMedia(q);
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
+function Panel({ desc, children }: { desc?: string; children: ReactNode }) {
   return (
-    <section id={`set-${id}`} className="mb-6 scroll-mt-24">
-      <div className="mb-2 flex items-center gap-2 px-1">
-        <Icon size={16} className="text-primary" />
-        <h2 className="text-[13px] font-bold uppercase tracking-wider text-muted-foreground">{title}</h2>
-      </div>
-      {desc && <p className="mb-2 px-1 text-[12.5px] leading-snug text-muted-foreground">{desc}</p>}
+    <section className="mb-6">
+      {desc && <p className="mb-3 px-1 text-[13px] leading-snug text-muted-foreground">{desc}</p>}
       <div className="card space-y-4 p-4">{children}</div>
     </section>
   );
@@ -109,21 +131,22 @@ function ChipList({ values, onAdd, onRemove, placeholder, numeric, suffix, label
 export function SettingsPage({ section }: { section?: string }) {
   const { data, updateSettings, toast } = useStore();
   const nav = useNav();
+  const wide = useIsDesktop();
   const s = data.settings;
   const [f, setF] = useState<Form>(() => pick(s));
   const [leave, setLeave] = useState(false);
   const [levelSheet, setLevelSheet] = useState<{ key?: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // phones open on the list of sections; computers always show a section (the first by default)
+  const active: SectionId | null = isSection(section) ? section : wide ? 'company' : null;
+  const meta = SECTIONS.find((x) => x.id === active);
 
   const dirty = JSON.stringify(f) !== JSON.stringify(pick(s));
   const text = (k: TextKey) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
-  // open on a given block (e.g. from "fill in your company first")
-  useEffect(() => {
-    if (section) document.getElementById(`set-${section}`)?.scrollIntoView();
-  }, [section]);
-
-  // the phone's back button asks before throwing typed changes away
+  // the phone's back button and the edge swipe ask before throwing typed changes away
   useEffect(() => {
     if (!dirty) return;
     return nav.onBack(() => {
@@ -132,7 +155,15 @@ export function SettingsPage({ section }: { section?: string }) {
     });
   }, [dirty, nav]);
 
-  const jump = (id: SectionId) => document.getElementById(`set-${id}`)?.scrollIntoView();
+  // keep the chosen tab in view
+  useEffect(() => {
+    if (active) tabRefs.current[active]?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [active]);
+
+  const openTab = (id: SectionId) => {
+    nav.replace({ name: 'settings', section: id });
+    window.scrollTo(0, 0);
+  };
 
   const setGstin = (e: ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value.toUpperCase();
@@ -154,7 +185,7 @@ export function SettingsPage({ section }: { section?: string }) {
   };
 
   const save = () => {
-    updateSettings({
+    const next: Partial<Settings> = {
       businessName: f.businessName.trim(),
       businessTagline: f.businessTagline.trim(),
       businessAddress: f.businessAddress.trim(),
@@ -176,36 +207,66 @@ export function SettingsPage({ section }: { section?: string }) {
       currency: f.currency.trim() || '₹',
       defaults: f.defaults,
       stockWastePct: Math.max(0, f.stockWastePct || 0),
-    });
+    };
+    updateSettings(next);
+    setF(pick({ ...s, ...next })); // show the trimmed values and clear the Save bar
     toast('Settings saved');
   };
-  // after a save the draft is re-read so trimmed values show and the bar goes away
-  const [savedTick, setSavedTick] = useState(0);
-  useEffect(() => {
-    if (savedTick) setF(pick(s));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [savedTick]);
 
   const widths = s.reelWidths || [];
   const levels = Object.entries(s.stockMin || {}).filter(([, v]) => v > 0);
   const haveKg = new Map(stockByGrade(data.reels, data.stockMoves).map((g) => [g.key, g.kg]));
   const payModes = s.payModes || [];
 
+  const askLeave = () => (dirty ? setLeave(true) : nav.back());
+
+  // ---------- list of sections (phone) ----------
+  if (!active || !meta) {
+    return (
+      <>
+        <Header title="App settings" subtitle="Choose what to set up" back />
+        <Page>
+          <List>
+            {SECTIONS.map(({ id, label, icon: Icon, summary }) => (
+              <Row key={id} onClick={() => nav.push({ name: 'settings', section: id })} icon={<span className={iconBox}><Icon size={20} /></span>} title={label} sub={summary(s)} />
+            ))}
+          </List>
+          <div className="mt-5">
+            <List>
+              <Row onClick={() => nav.push({ name: 'help' })} icon={<span className={iconBox}><CircleHelp size={20} /></span>} title="Help & FAQ" sub="Answers, backup tips and privacy" />
+            </List>
+          </div>
+        </Page>
+      </>
+    );
+  }
+
+  // ---------- one section ----------
   return (
     <>
-      <Header title="App settings" subtitle="Everything you set once, in one place" back onBack={() => (dirty ? setLeave(true) : nav.back())} />
+      <Header title={wide ? 'App settings' : meta.label} subtitle={wide ? meta.label : 'App settings'} back onBack={askLeave} />
       <Page>
-        <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0" role="navigation" aria-label="Settings sections">
+        <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0" role="tablist" aria-label="Settings sections">
           {SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => jump(id)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-[13.5px] font-semibold active:bg-muted">
-              <Icon size={15} className="text-primary" /> {label}
+            <button
+              key={id}
+              ref={(el) => {
+                tabRefs.current[id] = el;
+              }}
+              type="button"
+              role="tab"
+              aria-selected={id === active}
+              onClick={() => id !== active && openTab(id)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13.5px] font-semibold transition ${id === active ? 'border-primary bg-primary text-white' : 'border-border bg-card active:bg-muted'}`}
+            >
+              <Icon size={15} className={id === active ? '' : 'text-primary'} /> {label}
             </button>
           ))}
         </div>
 
-        <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
-          <div>
-            <Block id="company" title="Business profile" desc="Printed at the top of every invoice. The logo is kept inside your backups.">
+        <div className="lg:mx-auto lg:max-w-2xl" role="tabpanel">
+          {active === 'company' && (
+            <Panel desc="Printed at the top of every invoice. The logo is kept inside your backups.">
               <div className="flex items-center gap-4">
                 <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border bg-card">
                   {f.businessLogo ? <img src={f.businessLogo} alt="Company logo" className="max-h-full max-w-full object-contain" /> : <ImagePlus size={28} className="text-muted-foreground" />}
@@ -252,9 +313,11 @@ export function SettingsPage({ section }: { section?: string }) {
                   </select>
                 </Field>
               </div>
-            </Block>
+            </Panel>
+          )}
 
-            <Block id="invoice" title="Invoice & bank" desc="Bank details and numbering for the GST tax invoice PDF.">
+          {active === 'invoice' && (
+            <Panel desc="Bank details and numbering for the GST tax invoice PDF.">
               <Field label="Account holder">
                 <input className="input" value={f.bankHolder} onChange={text('bankHolder')} placeholder={f.businessName || 'Same as company name'} />
               </Field>
@@ -289,9 +352,11 @@ export function SettingsPage({ section }: { section?: string }) {
               <Field label="Declaration">
                 <textarea className="input min-h-[88px]" value={f.invoiceDeclaration} onChange={text('invoiceDeclaration')} />
               </Field>
-            </Block>
+            </Panel>
+          )}
 
-            <Block id="pricing" title="Pricing defaults" desc="Starting values in the calculator and for new orders.">
+          {active === 'pricing' && (
+            <Panel desc="Starting values in the calculator and for new orders.">
               <Field label="Currency symbol">
                 <input className="input" value={f.currency} onChange={text('currency')} maxLength={4} />
               </Field>
@@ -306,11 +371,11 @@ export function SettingsPage({ section }: { section?: string }) {
                   <NumInput value={f.defaults.taxPct} onValue={(v) => setDef('taxPct', v)} suffix="%" />
                 </Field>
               </div>
-            </Block>
-          </div>
+            </Panel>
+          )}
 
-          <div>
-            <Block id="stock" title="Paper stock" desc="How reels are planned, bought and issued.">
+          {active === 'stock' && (
+            <Panel desc="How reels are planned, bought and issued.">
               <Toggle checked={s.autoIssue} onChange={(v) => updateSettings({ autoIssue: v })} label="Issue paper automatically" desc="When an order is confirmed, take its paper from the reels if all of it is in stock. If not, you are told what is short and nothing is taken for that grade." />
               <Field label="Extra paper to plan for" hint="Added to the calculated need on every order for start-up waste and spoilage. Side trim from the reel width is worked out separately.">
                 <NumInput value={f.stockWastePct} onValue={(v) => setF((x) => ({ ...x, stockWastePct: v }))} suffix="%" />
@@ -351,9 +416,11 @@ export function SettingsPage({ section }: { section?: string }) {
                   </List>
                 )}
               </div>
-            </Block>
+            </Panel>
+          )}
 
-            <Block id="lists" title="Lists" desc="Choices offered while you work.">
+          {active === 'lists' && (
+            <Panel desc="Choices offered while you work.">
               <div>
                 <span className="label">Payment methods</span>
                 <ChipList
@@ -369,9 +436,11 @@ export function SettingsPage({ section }: { section?: string }) {
                   }}
                 />
               </div>
-            </Block>
+            </Panel>
+          )}
 
-            <Block id="backup" title="Backup" desc="Backups hold everything, including these settings and your logo.">
+          {active === 'backup' && (
+            <Panel desc="Backups hold everything, including these settings and your logo.">
               <Toggle checked={s.autoBackup} onChange={(v) => updateSettings({ autoBackup: v })} label="Daily backup" desc="A copy is saved once a day when you open the app." />
               {s.autoBackup && (
                 <div>
@@ -388,9 +457,11 @@ export function SettingsPage({ section }: { section?: string }) {
                   chevron={false}
                 />
               </List>
-            </Block>
+            </Panel>
+          )}
 
-            <Block id="appearance" title="Appearance">
+          {active === 'appearance' && (
+            <Panel>
               <Segmented<Settings['theme']>
                 value={s.theme}
                 onChange={(theme) => updateSettings({ theme })}
@@ -403,8 +474,8 @@ export function SettingsPage({ section }: { section?: string }) {
               <List>
                 <Row onClick={() => nav.push({ name: 'help' })} icon={<CircleHelp size={20} className="text-primary" />} title="Help & FAQ" sub="Answers, backup tips and privacy" />
               </List>
-            </Block>
-          </div>
+            </Panel>
+          )}
         </div>
 
         <p className="px-2 pb-2 text-center text-[12.5px] text-muted-foreground">Switches, lists and chips apply straight away. Typed fields are saved with the Save button.</p>
@@ -418,13 +489,7 @@ export function SettingsPage({ section }: { section?: string }) {
             <button className="btn-ghost !px-4 !py-2" onClick={() => setF(pick(s))}>
               Discard
             </button>
-            <button
-              className="btn-primary !px-5 !py-2"
-              onClick={() => {
-                save();
-                setSavedTick((n) => n + 1);
-              }}
-            >
+            <button className="btn-primary !px-5 !py-2" onClick={save}>
               Save
             </button>
           </div>

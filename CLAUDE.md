@@ -150,13 +150,20 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - `store.commit` now updates `dataRef` synchronously so several changes in one tick (save order → issue paper) build on each other.
 - Not built yet: supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.
 
-## App settings (one page for all predefined configuration)
+## App settings (all predefined configuration, one page per section)
 - `screens/Settings.tsx` (route `settings{section?}`; More → App settings, desktop sidebar). Follows the Embroidery-Shop-Manager "config" page pattern from rajesh-hub's catalogue
-  (business profile card + editable lists), built with BoxBook's hub-based `ui.tsx`. Sections (jump chips at the top): Business profile · Invoice & bank · Pricing defaults ·
-  Paper stock (auto-issue, extra %, common reel sizes, reorder levels) · Lists (payment methods) · Backup (daily backup, keep N days) · Appearance (theme) + Help link.
-- Two kinds of control: typed fields are a **draft** saved with the sticky Save bar (Discard / Save; leaving with unsaved changes asks first, via `Header onBack` and the hardware-back interceptor);
-  switches, chips and lists call `updateSettings` immediately.
+  (business profile card + editable lists), built with BoxBook's hub-based `ui.tsx`.
+- Sections, each its own page: Business · Invoice & bank · Pricing · Paper stock (auto-issue, extra %, common reel sizes, reorder levels) · Lists (payment methods) · Backup (daily backup, keep N days) · Appearance (theme).
+  **Phone**: `settings` with no section is a list of sections (icon, name, live summary) + a Help row; tapping one pushes `settings{section}`. Inside a section a tab strip (role=tab) switches
+  sections with `nav.replace` (same route key, so unsaved typing survives tab hops). **Computer (≥1024px, `useIsDesktop`)**: no list; the tabs are always shown and Business is the default.
+- Two kinds of control: typed fields are one **draft** across all sections, saved with the sticky Save bar (Discard / Save); leaving with unsaved changes asks first (`Header onBack` + a `nav.onBack` interceptor,
+  so the hardware back button and the swipe also ask). Switches, chips and lists call `updateSettings` immediately.
+- Other pages open a section directly: `nav.push({name:'settings', section:'company'|'stock'|'backup'…})` (Orders → "fill in your company first", Paper stock, Backup & restore links).
 - Moved here from elsewhere: Company, Business ("Pricing defaults") screens (deleted), Paper stock's sizes/levels/settings, Backup's "Automatic backup", More's Appearance.
-  The Paper stock page keeps only the "show used-up reels" view toggle; the Backup page shows a one-line summary linking to `settings{section:'backup'}`.
-- New setting `Settings.payModes` (default Cash, UPI, Bank transfer, Cheque, Other) feeds the payment sheet on orders. Other pages open the settings on a block with `nav.push({name:'settings', section:'company'})`.
+- `Settings.payModes` (default Cash, UPI, Bank transfer, Cheque, Other) feeds the payment sheet on orders.
 - Google Drive connect / daily-upload switch stay on Backup & restore (they belong to the connection).
+
+## Swipe back
+- `nav.tsx`: `goBack()` = what the phone back button does (a sheet's `onBack` interceptor first, else pop the stack). The Android back button and the swipe both use it.
+  A global touch handler: start within 24px of the left edge (not on input/textarea/select, only when a page is pushed), move right ≥80px, vertical drift ≤60px, within 0.9s → `goBack()`.
+  A round chevron follows the finger as feedback. Verified with synthetic touch events (short / off-edge / vertical swipes do nothing; an open sheet closes first). Not yet tried on a real phone.
