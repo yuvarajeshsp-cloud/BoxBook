@@ -29,7 +29,7 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - `store.tsx` — `StoreProvider`/`useStore()`: all CRUD, debounced save, **daily auto-backup** on launch, on app resume
   (`@capacitor/app` appStateChange), on visibilitychange and every 30 min; safety backup before restore (`replaceAll`); `toast()`.
 - `nav.tsx` — tiny stack router: tabs `home | orders | customers | calc | more`, pushed routes
-  (`order`, `orderEdit{id?,customerId?,prefill?}`, `customer`, `customerEdit`, `box{id?,customerId?}`, `boxes`, `backup`, `business`),
+  (`order`, `orderEdit{id?,customerId?,prefill?}`, `customer`, `customerEdit`, `box{id?,customerId?}`, `boxes`, `backup`, `settings{section?}`, `help`, `stock`, `reel`, `reelEdit`),
   Android hardware back button handling, `onBack()` interceptors for sheets.
 - `ui.tsx` — Header, Page, Section, Field, NumInput, Segmented, Toggle, Row/List, Avatar, Empty, Sheet (bottom sheet), Confirm,
   StatusChip + `STATUS`/`STATUS_FLOW`, Stat, SearchBox, Fab.
@@ -46,10 +46,10 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - Verified: `npx tsc -b`, `npx vitest run` (33 pass), web build, Android debug APK on an emulator, iOS build on the simulator.
 
 ### Tax invoice PDF + company profile
-- `screens/Company.tsx` (route `company`; More → Company profile, desktop sidebar entry): logo upload (resized to ≤400px PNG data URL),
+- Company profile now lives in **App settings** (see below): logo upload (`lib/image.ts` `logoFromFile`, resized to ≤400px PNG data URL),
   name, tagline, address, mobile, e-mail, GSTIN + state, bank details, invoice prefix / next number, default HSN + unit, declaration.
   All stored in `Settings` (`business*`, `bank*`, `invoice*`, `nextInvoiceNo`, `defaultHsn/Unit`), so every backup/export contains the company data **and logo**.
-  The old Business screen is now "Pricing defaults" (currency + default overhead/profit/GST).
+  Pricing defaults (currency + default overhead/profit/GST) are in App settings too.
 - Orders carry optional `invoiceNo`, `invoice` (dispatch grid fields) and per-item `hsn` / `unit`; customers carry optional `stateCode`.
   Edited in OrderEdit ("Tax invoice details", HSN/Unit per item) and CustomerEdit ("State (for GST)").
 - `lib/invoice.ts`: `buildInvoiceModel` (pure; CGST+SGST vs IGST decided by buyer state vs company state, discount spread before tax, tax per HSN)
@@ -149,3 +149,14 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
   "Purchased <size> mm" tile (list layout: a footer row). "Add reel" under a grade opens the reel form with that BF/GSM filled (`reelEdit{bf,gsm}`).
 - `store.commit` now updates `dataRef` synchronously so several changes in one tick (save order → issue paper) build on each other.
 - Not built yet: supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.
+
+## App settings (one page for all predefined configuration)
+- `screens/Settings.tsx` (route `settings{section?}`; More → App settings, desktop sidebar). Follows the Embroidery-Shop-Manager "config" page pattern from rajesh-hub's catalogue
+  (business profile card + editable lists), built with BoxBook's hub-based `ui.tsx`. Sections (jump chips at the top): Business profile · Invoice & bank · Pricing defaults ·
+  Paper stock (auto-issue, extra %, common reel sizes, reorder levels) · Lists (payment methods) · Backup (daily backup, keep N days) · Appearance (theme) + Help link.
+- Two kinds of control: typed fields are a **draft** saved with the sticky Save bar (Discard / Save; leaving with unsaved changes asks first, via `Header onBack` and the hardware-back interceptor);
+  switches, chips and lists call `updateSettings` immediately.
+- Moved here from elsewhere: Company, Business ("Pricing defaults") screens (deleted), Paper stock's sizes/levels/settings, Backup's "Automatic backup", More's Appearance.
+  The Paper stock page keeps only the "show used-up reels" view toggle; the Backup page shows a one-line summary linking to `settings{section:'backup'}`.
+- New setting `Settings.payModes` (default Cash, UPI, Bank transfer, Cheque, Other) feeds the payment sheet on orders. Other pages open the settings on a block with `nav.push({name:'settings', section:'company'})`.
+- Google Drive connect / daily-upload switch stay on Backup & restore (they belong to the connection).

@@ -10,8 +10,8 @@ import { Home } from './screens/Home';
 import { OrderDetail, OrderEdit, OrdersList } from './screens/Orders';
 import { CustomerDetail, CustomerEdit, CustomersList } from './screens/Customers';
 import { Calculator } from './screens/Calculator';
-import { BoxesList, Business, More } from './screens/More';
-import { Company } from './screens/Company';
+import { BoxesList, More } from './screens/More';
+import { SettingsPage } from './screens/Settings';
 import { Help } from './screens/Help';
 import { ReelDetail, ReelEdit, StockList } from './screens/Stock';
 import { Backup } from './screens/Backup';
@@ -57,10 +57,8 @@ function renderRoute(r: Route) {
       return <BoxesList />;
     case 'backup':
       return <Backup />;
-    case 'business':
-      return <Business />;
-    case 'company':
-      return <Company />;
+    case 'settings':
+      return <SettingsPage section={r.section} />;
     case 'help':
       return <Help />;
     case 'stock':

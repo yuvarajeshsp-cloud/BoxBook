@@ -24,8 +24,6 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-const PAY_MODES = ['Cash', 'UPI', 'Bank transfer', 'Cheque', 'Other'];
-
 const matches = (o: Order, f: Filter) => (f === 'all' ? true : f === 'active' ? isOpen(o) : o.status === f);
 const byNewest = (a: Order, b: Order) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number);
 
@@ -165,7 +163,7 @@ export function OrderDetail({ id }: { id: string }) {
     const s = data.settings;
     if (!s.businessName.trim()) {
       toast('Fill in your company profile first');
-      nav.push({ name: 'company' });
+      nav.push({ name: 'settings', section: 'company' });
       return;
     }
     if (o.items.length === 0) {
@@ -425,11 +423,12 @@ export function OrderDetail({ id }: { id: string }) {
 }
 
 function PaymentSheet({ open, onClose, order }: { open: boolean; onClose: () => void; order: Order }) {
-  const { upsertOrder, toast } = useStore();
+  const { data, upsertOrder, toast } = useStore();
+  const modes = data.settings.payModes?.length ? data.settings.payModes : ['Cash'];
   const balance = Math.max(0, Math.round(orderTotals(order).balance * 100) / 100);
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(todayISO());
-  const [mode, setMode] = useState(PAY_MODES[0]);
+  const [mode, setMode] = useState(modes[0]);
   const [note, setNote] = useState('');
 
   // Start each time the sheet opens with the full balance filled in.
@@ -439,7 +438,7 @@ function PaymentSheet({ open, onClose, order }: { open: boolean; onClose: () => 
     if (open) {
       setAmount(balance);
       setDate(todayISO());
-      setMode(PAY_MODES[0]);
+      setMode(modes[0]);
       setNote('');
     }
   }
@@ -467,7 +466,7 @@ function PaymentSheet({ open, onClose, order }: { open: boolean; onClose: () => 
           </Field>
           <Field label="Mode">
             <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
-              {PAY_MODES.map((m) => (
+              {modes.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>

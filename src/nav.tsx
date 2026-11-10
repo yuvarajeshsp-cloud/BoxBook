@@ -13,8 +13,7 @@ export type Route =
   | { name: 'box'; id?: string; customerId?: string }
   | { name: 'boxes' }
   | { name: 'backup' }
-  | { name: 'business' }
-  | { name: 'company' }
+  | { name: 'settings'; section?: string }
   | { name: 'help' }
   | { name: 'stock' }
   | { name: 'reel'; id: string }

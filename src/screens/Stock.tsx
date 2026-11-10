@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { AlertTriangle, Layers, LayoutGrid, List as ListIcon, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Layers, LayoutGrid, List as ListIcon, Pencil, Plus, Scissors, SlidersHorizontal, X } from 'lucide-react';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { fmtDate, fmtDateTime, money0, num, todayISO } from '../lib/format';
-import { gradeFromKey, gradeKey, gradeLabel, incrementNumber, reelBalance, stockAlerts, stockByGrade, stockByWidth } from '../lib/stock';
+import { gradeLabel, incrementNumber, reelBalance, stockAlerts, stockByGrade, stockByWidth } from '../lib/stock';
 import type { Reel, StockMoveKind } from '../lib/types';
 import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, Section, Segmented, Sheet, Toggle } from '../ui';
 import { Missing } from './Customers';
@@ -101,7 +101,7 @@ function ReelItems({ layout, items, mode, addLabel, onOpen, onAdd }: { layout: L
 
 /** Paper stock by grade (BF · GSM), reel by reel. */
 export function StockList() {
-  const { data, updateSettings } = useStore();
+  const { data } = useStore();
   const nav = useNav();
   const [showEmpty, setShowEmpty] = useState(false);
   const groups = stockByGrade(data.reels, data.stockMoves, showEmpty);
@@ -119,20 +119,10 @@ export function StockList() {
       /* private mode: just not remembered */
     }
   };
-  const [newWidth, setNewWidth] = useState(0);
   const widths = data.settings.reelWidths || [];
   const sizes = stockByWidth(data.reels, data.stockMoves, widths, showEmpty);
-  const addWidth = () => {
-    const w = Math.round(newWidth);
-    if (!(w > 0)) return;
-    if (!widths.includes(w)) updateSettings({ reelWidths: [...widths, w].sort((a, b) => a - b) });
-    setNewWidth(0);
-  };
   const alerts = stockAlerts(data.reels, data.stockMoves, data.orders, data.settings.stockMin, data.settings.stockWastePct);
   const lowKeys = new Set(alerts.low.map((l) => l.key));
-  const [levelSheet, setLevelSheet] = useState<{ key?: string } | null>(null);
-  const levels = Object.entries(data.settings.stockMin || {}).filter(([, v]) => v > 0);
-  const haveKg = new Map(stockByGrade(data.reels, data.stockMoves).map((g) => [g.key, g.kg]));
 
   return (
     <>
@@ -208,7 +198,7 @@ export function StockList() {
 
         {view === 'size' ? (
           sizes.length === 0 ? (
-            <div className="card p-5 text-center text-[14px] text-muted-foreground">Add the reel sizes you usually buy under “Common reel sizes” below. Each size then shows what is in stock and what you bought.</div>
+            <div className="card p-5 text-center text-[14px] text-muted-foreground">Add the reel sizes you usually buy in App settings. Each size then shows what is in stock and what you bought.</div>
           ) : (
             sizes.map((g) => (
               <Section
@@ -269,134 +259,21 @@ export function StockList() {
           ))
         )}
 
-        <Section title="Common reel sizes">
-          <div className="card space-y-3 p-4">
-            <p className="text-[13px] text-muted-foreground">The widths you usually buy. They are offered when you add a reel, and “By reel size” shows what you hold and what you bought at each.</p>
-            {widths.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {widths.map((w) => (
-                  <span key={w} className="inline-flex items-center gap-1 rounded-full bg-primary/12 py-1 pl-3 pr-1 text-[14px] font-semibold text-primary">
-                    {num(w, 0)} mm
-                    <button aria-label={`Remove ${w} mm`} className="grid h-6 w-6 place-items-center rounded-full active:bg-primary/20" onClick={() => updateSettings({ reelWidths: widths.filter((x) => x !== w) })}>
-                      <X size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <NumInput aria-label="New reel size in mm" value={newWidth} onValue={setNewWidth} suffix="mm" placeholder="e.g. 1200" />
-              </div>
-              <button className="btn-ghost !px-4" disabled={!(newWidth > 0)} onClick={addWidth}>
-                <Plus size={18} /> Add
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Reorder levels" action={<button className="text-[14px] font-semibold text-primary" onClick={() => setLevelSheet({})}>+ Add level</button>}>
-          {levels.length === 0 ? (
-            <div className="card p-5 text-center text-[14px] text-muted-foreground">Set the least paper you want to keep for each grade and BoxBook warns you here and on Home when stock drops below it.</div>
-          ) : (
-            <List>
-              {levels.map(([key, min]) => {
-                const have = haveKg.get(key) ?? 0;
-                const low = have < min;
-                const { gsm, bf } = gradeFromKey(key);
-                return (
-                  <Row
-                    key={key}
-                    onClick={() => setLevelSheet({ key })}
-                    title={gradeLabel(gsm, bf)}
-                    sub={`Keep at least ${kg(min)} · have ${kg(have)}`}
-                    right={low ? <span className="chip bg-bad/12 text-bad">Low</span> : undefined}
-                  />
-                );
-              })}
-            </List>
-          )}
-        </Section>
-
-        <Section title="Settings">
+        <Section title="View">
           <div className="card space-y-4 p-4">
-            <Toggle
-              checked={data.settings.autoIssue}
-              onChange={(v) => updateSettings({ autoIssue: v })}
-              label="Issue paper automatically"
-              desc="When an order is confirmed, take its paper from the reels if all of it is in stock. If not, you are told what is short and nothing is taken for that grade."
-            />
-            <Field label="Extra paper to plan for" hint="Added to the calculated need on every order for start-up waste and spoilage. Side trim from the reel width is worked out separately.">
-              <NumInput value={data.settings.stockWastePct} onValue={(v) => updateSettings({ stockWastePct: Math.max(0, v) })} suffix="%" />
-            </Field>
             <Toggle checked={showEmpty} onChange={setShowEmpty} label="Show used-up reels" desc="Reels with nothing left are hidden from the list." />
+            <button className="flex w-full items-center justify-between gap-3 border-t border-border/60 pt-4 text-left" onClick={() => nav.push({ name: 'settings', section: 'stock' })}>
+              <span>
+                <span className="block text-[15px] font-medium">Reel sizes, reorder levels, automatic issue</span>
+                <span className="block text-[12.5px] text-muted-foreground">Change them in App settings</span>
+              </span>
+              <ChevronRight size={18} className="shrink-0 text-muted-foreground" />
+            </button>
           </div>
         </Section>
       </Page>
       {groups.length > 0 && <Fab label="Add reel" icon={<Plus size={20} />} onClick={add} />}
-      <LevelSheet state={levelSheet} onClose={() => setLevelSheet(null)} />
     </>
-  );
-}
-
-function LevelSheet({ state, onClose }: { state: { key?: string } | null; onClose: () => void }) {
-  const { data, updateSettings, toast } = useStore();
-  const editing = state?.key;
-  const [bf, setBf] = useState(0);
-  const [gsm, setGsm] = useState(0);
-  const [min, setMin] = useState(0);
-  const [loaded, setLoaded] = useState<string | null | undefined>(undefined);
-  const id = state ? (editing ?? '') : null;
-  if (id !== loaded) {
-    // (re)load the form when the sheet opens
-    setLoaded(id);
-    if (state) {
-      const g = editing ? gradeFromKey(editing) : { gsm: 0, bf: 0 };
-      setBf(g.bf);
-      setGsm(g.gsm);
-      setMin(editing ? data.settings.stockMin[editing] || 0 : 0);
-    }
-  }
-  const save = () => {
-    if (!(bf > 0 && gsm > 0 && min > 0)) return;
-    updateSettings({ stockMin: { ...data.settings.stockMin, [gradeKey(gsm, bf)]: min } });
-    toast('Reorder level saved');
-    onClose();
-  };
-  const remove = () => {
-    if (!editing) return;
-    const next = { ...data.settings.stockMin };
-    delete next[editing];
-    updateSettings({ stockMin: next });
-    toast('Reorder level removed');
-    onClose();
-  };
-  return (
-    <Sheet open={!!state} onClose={onClose} title={editing ? `Level for ${gradeLabel(gradeFromKey(editing).gsm, gradeFromKey(editing).bf)}` : 'New reorder level'}>
-      <div className="space-y-4">
-        {!editing && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="BF">
-              <NumInput value={bf} onValue={setBf} />
-            </Field>
-            <Field label="GSM">
-              <NumInput value={gsm} onValue={setGsm} />
-            </Field>
-          </div>
-        )}
-        <Field label="Keep at least" hint="You are warned when the paper in stock for this grade falls below this.">
-          <NumInput value={min} onValue={setMin} suffix="kg" />
-        </Field>
-        <button className="btn-primary w-full" disabled={!(bf > 0 && gsm > 0 && min > 0)} onClick={save}>
-          Save
-        </button>
-        {editing && (
-          <button className="btn-danger w-full" onClick={remove}>
-            Remove level
-          </button>
-        )}
-      </div>
-    </Sheet>
   );
 }
 

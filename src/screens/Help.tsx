@@ -9,6 +9,15 @@ interface Qa {
 
 const GROUPS: { title: string; items: Qa[] }[] = [
   {
+    title: 'App settings',
+    items: [
+      {
+        q: 'Where do I change my company details, defaults and lists?',
+        a: 'More → App settings has them all on one page: business profile and logo, bank and invoice numbering, pricing defaults, paper stock rules (automatic issue, extra %, reel sizes, reorder levels), payment methods, daily backup and the light/dark theme. Tap a name in the row at the top to jump to it. Typed fields are saved with the Save button that appears; switches, chips and lists apply straight away.',
+      },
+    ],
+  },
+  {
     title: 'Box calculator',
     items: [
       {
@@ -30,7 +39,7 @@ const GROUPS: { title: string; items: Qa[] }[] = [
     items: [
       {
         q: 'How do I make a GST tax invoice?',
-        a: 'First fill in More → Company profile (name, logo, GSTIN, address, bank details). Then open an order and tap “Make & share invoice (PDF)”. The PDF opens the share sheet, so you can send it on WhatsApp, e-mail or save it to Drive. On a computer it downloads instead.',
+        a: 'First fill in More → App settings → Business profile and Invoice & bank (name, logo, GSTIN, address, bank details). Then open an order and tap “Make & share invoice (PDF)”. The PDF opens the share sheet, so you can send it on WhatsApp, e-mail or save it to Drive. On a computer it downloads instead.',
       },
       {
         q: 'CGST + SGST or IGST?',
@@ -38,7 +47,7 @@ const GROUPS: { title: string; items: Qa[] }[] = [
       },
       {
         q: 'How are invoice numbers given?',
-        a: 'The first time you make an invoice for an order it gets the next number from Company profile (with your prefix, if any). The number is kept for that order, so sharing it again never creates a new one. To start from another number, change “Next invoice no.”.',
+        a: 'The first time you make an invoice for an order it gets the next number from App settings → Invoice & bank (with your prefix, if any). The number is kept for that order, so sharing it again never creates a new one. To start from another number, change “Next invoice no.”.',
       },
       {
         q: 'Where do I add HSN, dispatch and delivery details?',
@@ -59,11 +68,11 @@ const GROUPS: { title: string; items: Qa[] }[] = [
       },
       {
         q: 'What are common reel sizes?',
-        a: 'In More → Paper stock → Common reel sizes, add the widths you usually buy (for example 1000, 1200 mm). Switch the list to “By reel size” to see, for each width, the reels in stock, the kg in stock and the kg you have bought. “Purchased …” under a size opens the reel form with that width ready. Set “Reels” to add a batch at once (each with the same weight). The order page also shows the nearest common size that fits the box.',
+        a: 'In More → App settings → Paper stock → Common reel sizes, add the widths you usually buy (for example 1000, 1200 mm). Switch the list to “By reel size” to see, for each width, the reels in stock, the kg in stock and the kg you have bought. “Purchased …” under a size opens the reel form with that width ready. Set “Reels” to add a batch at once (each with the same weight). The order page also shows the nearest common size that fits the box.',
       },
       {
         q: 'How does an order use the stock?',
-        a: 'An order made from calculator boxes shows “Paper needed” per grade (BF and GSM): the kg from the box size and quantity, plus the extra % you set in Paper stock for start-up waste. When you confirm the order (or save it as confirmed), BoxBook takes the paper from the best-fitting reels by itself, if all of that grade is in stock. If something is short you get a message saying which grade and how many kg, and nothing is taken for that grade. Turn this off in Paper stock if you prefer to issue by hand.',
+        a: 'An order made from calculator boxes shows “Paper needed” per grade (BF and GSM): the kg from the box size and quantity, plus the extra % you set in App settings → Paper stock for start-up waste. When you confirm the order (or save it as confirmed), BoxBook takes the paper from the best-fitting reels by itself, if all of that grade is in stock. If something is short you get a message saying which grade and how many kg, and nothing is taken for that grade. Turn this off in App settings → Paper stock if you prefer to issue by hand.',
       },
       {
         q: 'A grade was short. What now?',
@@ -71,7 +80,7 @@ const GROUPS: { title: string; items: Qa[] }[] = [
       },
       {
         q: 'How do low-stock alerts work?',
-        a: 'In Paper stock → Reorder levels, set the least kg you want to keep for a grade. When stock falls below it, a red “Time to buy paper” card appears on Home and in Paper stock. The same card also appears when open orders need more of a grade than you have.',
+        a: 'In More → App settings → Paper stock → Reorder levels, set the least kg you want to keep for a grade. When stock falls below it, a red “Time to buy paper” card appears on Home and in Paper stock. The same card also appears when open orders need more of a grade than you have.',
       },
       {
         q: 'Which reel should I pick?',

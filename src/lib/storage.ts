@@ -40,6 +40,7 @@ export const defaultSettings: Settings = {
   autoIssue: true,
   stockMin: {},
   reelWidths: [],
+  payModes: ['Cash', 'UPI', 'Bank transfer', 'Cheque', 'Other'],
 };
 
 export function emptyData(): AppData {

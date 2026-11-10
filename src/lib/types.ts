@@ -187,6 +187,8 @@ export interface Settings {
   stockMin: Record<string, number>;
   /** Reel widths (mm) you usually buy; offered when adding a reel and used to group the stock by size. */
   reelWidths: number[];
+  /** Payment methods offered when recording a payment. */
+  payModes: string[];
 }
 
 export interface AppData {
