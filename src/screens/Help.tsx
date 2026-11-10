@@ -13,7 +13,7 @@ const GROUPS: { title: string; items: Qa[] }[] = [
     items: [
       {
         q: 'Where do I change my company details, defaults and lists?',
-        a: 'More → App settings has a page for each: Business, Invoice & bank, Pricing, Paper stock, Lists (payment methods), Backup and Appearance. On a phone pick one from the list; the tabs at the top let you jump to another, and you go back by swiping in from the left edge or with the back button. On a computer the same tabs sit at the top of the page. Typed fields are saved with the Save button that appears; switches, chips and lists apply straight away.',
+        a: 'More → App settings has a page for each: Business, Invoice & bank, Pricing, Paper stock, Lists (payment methods), Backup and Appearance. On a phone pick one from the list and come back by swiping in from the left edge or with the back button. On a computer the sections are tabs at the top of the page. Typed fields are saved with the Save button that appears; switches, chips and lists apply straight away.',
       },
     ],
   },

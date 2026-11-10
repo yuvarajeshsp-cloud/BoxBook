@@ -11,8 +11,8 @@ import { Confirm, Field, Header, List, NumInput, Page, Row, Segmented, Sheet, To
 
 /**
  * App settings: every predefined value of the app, one section per page.
- * Phone: a list of sections; tap one to open it (swipe from the left edge or press back to return) and use the
- * tabs at the top to hop between sections. Computer: the same tabs, no list.
+ * Phone: a list of sections; tap one to open it (swipe from the left edge or press back to return); no tabs.
+ * Computer: tabs at the top, no list.
  * Typed fields are saved with the Save bar (one draft across all sections); switches, chips and lists apply at once.
  */
 
@@ -246,7 +246,8 @@ export function SettingsPage({ section }: { section?: string }) {
     <>
       <Header title={wide ? 'App settings' : meta.label} subtitle={wide ? meta.label : 'App settings'} back onBack={askLeave} />
       <Page>
-        <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0" role="tablist" aria-label="Settings sections">
+        {/* computers only: on a phone the list page is the menu */}
+        <div className="mb-5 hidden gap-2 overflow-x-auto pb-1 lg:flex" role="tablist" aria-label="Settings sections">
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}

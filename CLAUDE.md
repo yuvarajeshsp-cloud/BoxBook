@@ -154,8 +154,8 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
 - `screens/Settings.tsx` (route `settings{section?}`; More → App settings, desktop sidebar). Follows the Embroidery-Shop-Manager "config" page pattern from rajesh-hub's catalogue
   (business profile card + editable lists), built with BoxBook's hub-based `ui.tsx`.
 - Sections, each its own page: Business · Invoice & bank · Pricing · Paper stock (auto-issue, extra %, common reel sizes, reorder levels) · Lists (payment methods) · Backup (daily backup, keep N days) · Appearance (theme).
-  **Phone**: `settings` with no section is a list of sections (icon, name, live summary) + a Help row; tapping one pushes `settings{section}`. Inside a section a tab strip (role=tab) switches
-  sections with `nav.replace` (same route key, so unsaved typing survives tab hops). **Computer (≥1024px, `useIsDesktop`)**: no list; the tabs are always shown and Business is the default.
+  **Phone**: `settings` with no section is a list of sections (icon, name, live summary) + a Help row; tapping one pushes `settings{section}`. There is **no tab strip on phones** (the list is the menu; swipe/back returns).
+  **Computer (≥1024px, `useIsDesktop`)**: no list; a tab strip (role=tab, `hidden lg:flex`) switches sections with `nav.replace` (same route key, so unsaved typing survives tab hops) and Business is the default.
 - Two kinds of control: typed fields are one **draft** across all sections, saved with the sticky Save bar (Discard / Save); leaving with unsaved changes asks first (`Header onBack` + a `nav.onBack` interceptor,
   so the hardware back button and the swipe also ask). Switches, chips and lists call `updateSettings` immediately.
 - Other pages open a section directly: `nav.push({name:'settings', section:'company'|'stock'|'backup'…})` (Orders → "fill in your company first", Paper stock, Backup & restore links).
