@@ -226,3 +226,47 @@ export function allocationMessage(a: Allocation, lowAfter: StockAlerts['low'] = 
   return parts.join('. ');
 }
 const num1 = (n: number) => String(Math.round(n * 10) / 10);
+
+export interface SizeStock {
+  width: number;
+  /** In the list of common sizes (shown even when empty). */
+  common: boolean;
+  /** Kg in stock. */
+  kg: number;
+  /** Kg ever bought at this width (all reels, used up or not). */
+  purchased: number;
+  value: number;
+  reels: { reel: Reel; balance: number }[];
+}
+
+/** Stock grouped by reel width: every common size, plus any other width that has reels. Used-up reels only when `includeEmpty`. */
+export function stockByWidth(reels: Reel[], moves: StockMove[], common: number[], includeEmpty = false): SizeStock[] {
+  const map = new Map<number, SizeStock>();
+  const get = (width: number, isCommon: boolean) => {
+    const g = map.get(width) ?? { width, common: isCommon, kg: 0, purchased: 0, value: 0, reels: [] };
+    map.set(width, g);
+    return g;
+  };
+  for (const w of common) get(w, true);
+  for (const reel of reels) {
+    const g = get(reel.width, map.get(reel.width)?.common ?? false);
+    const balance = reelBalance(reel, moves);
+    g.purchased = r3(g.purchased + (reel.weightIn || 0));
+    if (!includeEmpty && balance <= 0.001) continue;
+    g.kg = r3(g.kg + balance);
+    g.value += balance * (reel.rate || 0);
+    g.reels.push({ reel, balance });
+  }
+  for (const g of map.values()) g.reels.sort((a, b) => a.reel.gsm - b.reel.gsm || a.reel.bf - b.reel.bf || a.balance - b.balance);
+  return [...map.values()].filter((g) => g.common || g.reels.length > 0).sort((a, b) => a.width - b.width);
+}
+
+/** The narrowest common size that can be cut for a deckle, if any. */
+export const nearestWidth = (common: number[], minWidth: number): number | undefined => [...common].sort((a, b) => a - b).find((w) => w >= minWidth);
+
+/** 'R-009' → 'R-010', 'A12' → 'A13', 'xyz' → 'xyz-2'. For numbering a batch of reels. */
+export function incrementNumber(n: string): string {
+  const m = n.match(/^(.*?)(\d+)$/);
+  if (!m) return `${n}-2`;
+  return m[1] + String(Number(m[2]) + 1).padStart(m[2].length, '0');
+}

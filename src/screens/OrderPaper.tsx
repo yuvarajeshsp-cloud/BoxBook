@@ -3,7 +3,7 @@ import { AlertTriangle, Check, Layers, Undo2 } from 'lucide-react';
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { fmtDateTime, num } from '../lib/format';
-import { availableNet, gradeLabel, issuedNet, matchingReels, paperNeed, reelDraw, type PaperNeed } from '../lib/stock';
+import { availableNet, gradeLabel, issuedNet, matchingReels, nearestWidth, paperNeed, reelDraw, type PaperNeed } from '../lib/stock';
 import type { Order } from '../lib/types';
 import { NumInput, Section, Sheet } from '../ui';
 
@@ -51,7 +51,13 @@ export function OrderPaper({ order }: { order: Order }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-[15px] font-semibold">{gradeLabel(n.gsm, n.bf)}</div>
-                    <div className="text-[12.5px] text-muted-foreground">Reel at least {n.minWidth} mm wide</div>
+                    <div className="text-[12.5px] text-muted-foreground">
+                      Reel at least {n.minWidth} mm wide
+                      {(data.settings.reelWidths || []).length > 0 && (() => {
+                        const w = nearestWidth(data.settings.reelWidths, n.minWidth);
+                        return w ? ` · common size ${w} mm` : ' · no common size is wide enough';
+                      })()}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="tnum text-[17px] font-bold">{kg(plan)}</div>

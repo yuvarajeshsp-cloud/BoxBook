@@ -39,6 +39,7 @@ export const defaultSettings: Settings = {
   stockWastePct: 5,
   autoIssue: true,
   stockMin: {},
+  reelWidths: [],
 };
 
 export function emptyData(): AppData {

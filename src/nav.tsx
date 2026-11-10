@@ -18,7 +18,7 @@ export type Route =
   | { name: 'help' }
   | { name: 'stock' }
   | { name: 'reel'; id: string }
-  | { name: 'reelEdit'; id?: string };
+  | { name: 'reelEdit'; id?: string; width?: number };
 
 interface Nav {
   tab: Tab;

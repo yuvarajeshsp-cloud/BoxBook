@@ -68,7 +68,7 @@ function renderRoute(r: Route) {
     case 'reel':
       return <ReelDetail id={r.id} />;
     case 'reelEdit':
-      return <ReelEdit id={r.id} />;
+      return <ReelEdit id={r.id} width={r.width} />;
   }
 }
 

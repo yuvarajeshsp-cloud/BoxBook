@@ -141,5 +141,8 @@ One codebase → Android + iOS via **Capacitor 7 + React 19 + Vite 7 + TypeScrip
   Turn off with `Settings.autoIssue` (Paper stock → Settings); manual **Issue reels** / **Return** still work. Quotes never issue; cancelling does not return paper by itself.
 - Alerts: `Settings.stockMin` (`gsm-bf` → min kg, edited in Paper stock → Reorder levels). `stockAlerts()` gives `low` (grade under its level) and `short` (open orders need more than is in stock);
   shown as a red card on Home and Paper stock, a "to buy" count on the More row, and a "Low stock" line in the auto-issue toast. In-app only (no push notifications).
+- Common reel sizes: `Settings.reelWidths` (mm, edited in Paper stock → Common reel sizes). Paper stock has a "By grade | By reel size" switch; `stockByWidth()` groups reels by width
+  (every common size, plus any other width that has reels) with kg in stock and kg **purchased** (Σ `weightIn`, used-up reels included). "Purchased <size> mm" opens `reelEdit{width}`;
+  the reel form has size chips and a "Reels" count (adds N reels, numbered with `incrementNumber`). `nearestWidth()` shows the nearest common size on the order page.
 - `store.commit` now updates `dataRef` synchronously so several changes in one tick (save order → issue paper) build on each other.
 - Not built yet: supplier purchase orders, consumables (gum, wire, ink), finished-goods stock, per-job waste capture, reel barcodes.

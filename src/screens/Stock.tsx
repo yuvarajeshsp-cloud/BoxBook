@@ -3,7 +3,7 @@ import { AlertTriangle, Layers, Pencil, Plus, Scissors, SlidersHorizontal, X } f
 import { useStore } from '../store';
 import { useNav } from '../nav';
 import { fmtDate, fmtDateTime, money0, num, todayISO } from '../lib/format';
-import { gradeFromKey, gradeKey, gradeLabel, reelBalance, stockAlerts, stockByGrade } from '../lib/stock';
+import { gradeFromKey, gradeKey, gradeLabel, incrementNumber, reelBalance, stockAlerts, stockByGrade, stockByWidth } from '../lib/stock';
 import type { Reel, StockMoveKind } from '../lib/types';
 import { Confirm, Empty, Fab, Field, Header, IconBtn, List, NumInput, Page, Row, Section, Segmented, Sheet, Stat, Toggle } from '../ui';
 import { Missing } from './Customers';
@@ -22,6 +22,16 @@ export function StockList() {
   const reelCount = groups.reduce((s, g) => s + g.reels.filter((r) => r.balance > 0.001).length, 0);
   const value = groups.reduce((s, g) => s + g.value, 0);
   const add = () => nav.push({ name: 'reelEdit' });
+  const [view, setView] = useState<'grade' | 'size'>('grade');
+  const [newWidth, setNewWidth] = useState(0);
+  const widths = data.settings.reelWidths || [];
+  const sizes = stockByWidth(data.reels, data.stockMoves, widths, showEmpty);
+  const addWidth = () => {
+    const w = Math.round(newWidth);
+    if (!(w > 0)) return;
+    if (!widths.includes(w)) updateSettings({ reelWidths: [...widths, w].sort((a, b) => a - b) });
+    setNewWidth(0);
+  };
   const alerts = stockAlerts(data.reels, data.stockMoves, data.orders, data.settings.stockMin, data.settings.stockWastePct);
   const lowKeys = new Set(alerts.low.map((l) => l.key));
   const [levelSheet, setLevelSheet] = useState<{ key?: string } | null>(null);
@@ -56,7 +66,61 @@ export function StockList() {
           </div>
         )}
 
-        {groups.length === 0 ? (
+        {(data.reels.length > 0 || widths.length > 0) && (
+          <div className="mb-5">
+            <Segmented<'grade' | 'size'>
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'grade', label: 'By paper grade' },
+                { value: 'size', label: 'By reel size' },
+              ]}
+            />
+          </div>
+        )}
+
+        {view === 'size' ? (
+          sizes.length === 0 ? (
+            <div className="card p-5 text-center text-[14px] text-muted-foreground">Add the reel sizes you usually buy under “Common reel sizes” below. Each size then shows what is in stock and what you bought.</div>
+          ) : (
+            sizes.map((g) => (
+              <Section
+                key={g.width}
+                title={`${num(g.width, 0)} mm`}
+                action={
+                  <span className="tnum text-[13px] font-semibold text-muted-foreground">
+                    {kg(g.kg)} in stock · {kg(g.purchased)} bought
+                  </span>
+                }
+              >
+                <div className="card divide-y divide-border/60 overflow-hidden">
+                  {g.reels.length === 0 && <p className="px-4 py-3.5 text-[14px] text-muted-foreground">No reels in stock at this size.</p>}
+                  {g.reels.map(({ reel, balance }) => (
+                    <Row
+                      key={reel.id}
+                      onClick={() => nav.push({ name: 'reel', id: reel.id })}
+                      title={
+                        <>
+                          #{reel.number} <span className="font-normal text-muted-foreground">· {gradeLabel(reel.gsm, reel.bf)}</span>
+                        </>
+                      }
+                      sub={`${reel.supplier || 'No supplier'} · ${fmtDate(reel.receivedAt)}`}
+                      right={
+                        <span className="text-right">
+                          <span className={`tnum block text-[15px] font-bold ${balance <= 0.001 ? 'text-muted-foreground' : ''}`}>{kg(balance)}</span>
+                          <span className="tnum block text-[11.5px] text-muted-foreground">of {num(reel.weightIn, 0)}</span>
+                        </span>
+                      }
+                    />
+                  ))}
+                  <button className="flex w-full items-center justify-center gap-1.5 px-4 py-3 text-[14px] font-semibold text-primary active:bg-muted/70" onClick={() => nav.push({ name: 'reelEdit', width: g.width })}>
+                    <Plus size={16} /> Purchased {num(g.width, 0)} mm
+                  </button>
+                </div>
+              </Section>
+            ))
+          )
+        ) : groups.length === 0 ? (
           <div className="card">
             <Empty
               icon={<Layers size={28} />}
@@ -104,6 +168,32 @@ export function StockList() {
             </Section>
           ))
         )}
+
+        <Section title="Common reel sizes">
+          <div className="card space-y-3 p-4">
+            <p className="text-[13px] text-muted-foreground">The widths you usually buy. They are offered when you add a reel, and “By reel size” shows what you hold and what you bought at each.</p>
+            {widths.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {widths.map((w) => (
+                  <span key={w} className="inline-flex items-center gap-1 rounded-full bg-primary/12 py-1 pl-3 pr-1 text-[14px] font-semibold text-primary">
+                    {num(w, 0)} mm
+                    <button aria-label={`Remove ${w} mm`} className="grid h-6 w-6 place-items-center rounded-full active:bg-primary/20" onClick={() => updateSettings({ reelWidths: widths.filter((x) => x !== w) })}>
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <NumInput aria-label="New reel size in mm" value={newWidth} onValue={setNewWidth} suffix="mm" placeholder="e.g. 1200" />
+              </div>
+              <button className="btn-ghost !px-4" disabled={!(newWidth > 0)} onClick={addWidth}>
+                <Plus size={18} /> Add
+              </button>
+            </div>
+          </div>
+        </Section>
 
         <Section title="Reorder levels" action={<button className="text-[14px] font-semibold text-primary" onClick={() => setLevelSheet({})}>+ Add level</button>}>
           {levels.length === 0 ? (
@@ -372,17 +462,17 @@ function AdjustSheet({ open, onClose, balance, onSave }: { open: boolean; onClos
 }
 
 /** Add or edit a reel. */
-export function ReelEdit({ id }: { id?: string }) {
+export function ReelEdit({ id, width }: { id?: string; width?: number }) {
   const { data, upsertReel, deleteReel, toast } = useStore();
   const nav = useNav();
   const existing = id ? data.reels.find((r) => r.id === id) : undefined;
-  const nextNo = () => `R-${String(data.reels.length + 1).padStart(3, '0')}`;
+  const nextNo = () => incrementNumber(data.reels[0]?.number ?? 'R-000');
   const blank = (): Pick<Reel, 'number' | 'supplier' | 'bf' | 'gsm' | 'width' | 'weightIn' | 'rate' | 'receivedAt' | 'note'> => ({
     number: nextNo(),
     supplier: '',
     bf: 0,
     gsm: 0,
-    width: 0,
+    width: width ?? 0,
     weightIn: 0,
     rate: 0,
     receivedAt: todayISO(),
@@ -391,6 +481,8 @@ export function ReelEdit({ id }: { id?: string }) {
   const [f, setF] = useState(() => (existing ? { ...existing } : blank()));
   const [del, setDel] = useState(false);
   const [saved, setSaved] = useState(0);
+  const [count, setCount] = useState(1);
+  const sizes = data.settings.reelWidths || [];
   if (id && !existing) return <Missing />;
 
   const ok = f.number.trim() && f.gsm > 0 && f.bf > 0 && f.width > 0 && f.weightIn > 0;
@@ -399,12 +491,17 @@ export function ReelEdit({ id }: { id?: string }) {
       toast('Fill in reel no., BF, GSM, width and weight');
       return;
     }
-    upsertReel({ ...f, id: existing?.id, number: f.number.trim(), supplier: f.supplier.trim(), note: f.note.trim() });
-    toast(existing ? 'Reel updated' : 'Reel added');
+    const n = existing ? 1 : Math.max(1, Math.min(50, Math.floor(count) || 1));
+    let number = f.number.trim();
+    for (let i = 0; i < n; i++) {
+      upsertReel({ ...f, id: existing?.id, number, supplier: f.supplier.trim(), note: f.note.trim() });
+      if (i < n - 1) number = incrementNumber(number);
+    }
+    toast(existing ? 'Reel updated' : n > 1 ? `${n} reels added` : 'Reel added');
     if (another) {
-      // keep supplier, date, grade and rate: reels usually arrive in a batch
-      setF((x) => ({ ...x, number: `R-${String(data.reels.length + 2).padStart(3, '0')}`, width: 0, weightIn: 0, note: '' }));
-      setSaved((n) => n + 1);
+      // keep supplier, date, grade, size and rate: reels usually arrive in a batch
+      setF((x) => ({ ...x, number: incrementNumber(number), weightIn: 0, note: '' }));
+      setSaved((c) => c + n);
     } else nav.back();
   };
 
@@ -426,14 +523,39 @@ export function ReelEdit({ id }: { id?: string }) {
                   <NumInput value={f.width} onValue={(v) => setF({ ...f, width: v })} suffix="mm" />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Weight" hint="As received, from the label or weighbridge.">
+              {sizes.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] text-muted-foreground">Common sizes</span>
+                  {sizes.map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => setF({ ...f, width: w })}
+                      className={`rounded-full px-3 py-1 text-[13px] font-semibold ${f.width === w ? 'bg-primary text-white' : 'bg-primary/12 text-primary'}`}
+                    >
+                      {num(w, 0)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className={`grid gap-3 ${existing ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                {!existing && (
+                  <Field label="Reels">
+                    <NumInput value={count} onValue={(v) => setCount(Math.floor(v) || 0)} />
+                  </Field>
+                )}
+                <Field label={!existing && count > 1 ? 'Weight each' : 'Weight'}>
                   <NumInput value={f.weightIn} onValue={(v) => setF({ ...f, weightIn: v })} suffix="kg" />
                 </Field>
                 <Field label="Rate / kg">
                   <NumInput value={f.rate} onValue={(v) => setF({ ...f, rate: v })} suffix={data.settings.currency} />
                 </Field>
               </div>
+              {!existing && count > 1 && f.weightIn > 0 && (
+                <p className="text-[12.5px] text-muted-foreground">
+                  Adds {count} reels, #{f.number} onwards, {num(f.weightIn, 1)} kg each: {num(count * f.weightIn, 1)} kg in all.
+                </p>
+              )}
             </div>
           </Section>
 

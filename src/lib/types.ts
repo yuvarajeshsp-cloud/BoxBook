@@ -185,6 +185,8 @@ export interface Settings {
   autoIssue: boolean;
   /** Reorder levels: minimum kg to keep per grade, keyed `${gsm}-${bf}`. */
   stockMin: Record<string, number>;
+  /** Reel widths (mm) you usually buy; offered when adding a reel and used to group the stock by size. */
+  reelWidths: number[];
 }
 
 export interface AppData {

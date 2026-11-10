@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { calcBox, layerGrams } from './calc';
-import { allocationMessage, availableNet, issuedByGrade, issuedNet, matchingReels, paperNeed, planAllocation, reelBalance, reelDraw, stockAlerts, stockByGrade } from './stock';
+import { allocationMessage, availableNet, incrementNumber, issuedByGrade, issuedNet, matchingReels, nearestWidth, paperNeed, planAllocation, reelBalance, reelDraw, stockAlerts, stockByGrade, stockByWidth } from './stock';
 import { emptyData, normalize } from './storage';
 import type { BoxSpec, Order, OrderItem, Reel, StockMove } from './types';
 
@@ -188,6 +188,38 @@ describe('stock alerts', () => {
   });
 });
 
+describe('common reel sizes', () => {
+  const reels = [reel('a', 150, 18, 1200, 200), reel('b', 120, 16, 1200, 100), reel('c', 150, 18, 1000, 80), reel('d', 150, 18, 950, 60), reel('e', 150, 18, 1200, 0)];
+  const moves = [move('a', -50, 'o1')];
+
+  it('groups by width: common sizes first-class, other widths that have reels, empty common sizes kept', () => {
+    const g = stockByWidth(reels, moves, [1200, 1000, 1100]);
+    expect(g.map((x) => [x.width, x.common])).toEqual([[950, false], [1000, true], [1100, true], [1200, true]]);
+    const w1200 = g.find((x) => x.width === 1200)!;
+    expect(w1200.kg).toBe(250); // 200-50 + 100, used-up reel left out
+    expect(w1200.reels).toHaveLength(2);
+    expect(g.find((x) => x.width === 1100)!.kg).toBe(0);
+  });
+  it('counts what was bought at a size, including reels already used up', () => {
+    const w1200 = stockByWidth(reels, moves, [1200]).find((x) => x.width === 1200)!;
+    expect(w1200.purchased).toBe(300); // 200 + 100 + 0
+  });
+  it('can include used-up reels', () => {
+    expect(stockByWidth(reels, moves, [1200], true).find((x) => x.width === 1200)!.reels).toHaveLength(3);
+  });
+  it('finds the narrowest common size that fits', () => {
+    expect(nearestWidth([1200, 1000, 1100], 1050)).toBe(1100);
+    expect(nearestWidth([1200, 1000], 1300)).toBeUndefined();
+    expect(nearestWidth([], 370)).toBeUndefined();
+  });
+  it('numbers a batch of reels', () => {
+    expect(incrementNumber('R-009')).toBe('R-010');
+    expect(incrementNumber('A12')).toBe('A13');
+    expect(incrementNumber('99')).toBe('100');
+    expect(incrementNumber('xyz')).toBe('xyz-2');
+  });
+});
+
 describe('older backups', () => {
   it('load with no reels', () => {
     const d = emptyData() as unknown as Record<string, unknown>;
@@ -199,6 +231,7 @@ describe('older backups', () => {
     expect(n.settings.stockWastePct).toBe(5);
     expect(n.settings.autoIssue).toBe(true);
     expect(n.settings.stockMin).toEqual({});
+    expect(n.settings.reelWidths).toEqual([]);
   });
   it('keep reels and movements', () => {
     const d = emptyData();
